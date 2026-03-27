@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- 同步 -->
+    <item
+        android:id="@+id/action_sync"
+        android:icon="@android:drawable/ic_popup_sync"
+        android:title="@string/action_sync"
+        app:showAsAction="ifRoom" />
+
+    <!-- 导出 -->
+    <item
+        android:id="@+id/action_export"
+        android:icon="@android:drawable/ic_menu_share"
+        android:title="@string/action_export"
+        app:showAsAction="never" />
+
+    <!-- 导入 -->
+    <item
+        android:id="@+id/action_import"
+        android:icon="@android:drawable/ic_menu_add"
+        android:title="@string/action_import"
+        app:showAsAction="never" />
+
+    <!-- 分隔线 -->
+    <item
+        android:id="@+id/action_separator"
+        android:title=""
+        app:showAsAction="never" />
+
+    <!-- 设置 -->
+    <item
+        android:id="@+id/action_settings"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:title="@string/action_settings"
+        app:showAsAction="never" />
+
+</menu>
