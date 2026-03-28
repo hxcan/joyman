@@ -9,9 +9,13 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.ui.adapter.TaskAdapter;
+import com.stupidbeauty.builtinftp.BuiltinFtpServer;
+import com.stupidbeauty.joyman.listener.BuiltinFtpServerErrorListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * JoyMan 主界面 - 任务列表展示
@@ -23,9 +27,42 @@ public class MainActivity extends AppCompatActivity {
     
     private static final String TAG = "MainActivity";
     
+    // 内置 FTP 服务器固定端口（避免与 BlindBox.her 等应用冲突）
+    private static final int FTP_SERVER_PORT = 2122;
+    
     private RecyclerView recyclerView;
     private TaskAdapter taskAdapter;
     private List<Task> taskList;
+    
+    // 内置 FTP 服务器相关
+    private BuiltinFtpServer builtinFtpServer = null;
+    private BuiltinFtpServerErrorListener builtinFtpServerErrorListener = null;
+
+    /**
+     * 启动内置 FTP 服务器
+     */
+    private void startBuiltinFtpServer() {
+        builtinFtpServer = new BuiltinFtpServer(this);
+        builtinFtpServerErrorListener = new BuiltinFtpServerErrorListener(this);
+        
+        builtinFtpServer.setPort(FTP_SERVER_PORT);
+        builtinFtpServer.setAllowActiveMode(false);
+        builtinFtpServer.setErrorListener(builtinFtpServerErrorListener);
+        builtinFtpServer.start();
+    }
+
+    /**
+     * 计划启动内置 FTP 服务器（延时 2 秒）
+     */
+    private void scheduleStartBuiltinFtpServer() {
+        Timer timerObj = new Timer();
+        TimerTask timerTaskObj = new TimerTask() {
+            public void run() {
+                startBuiltinFtpServer();
+            }
+        };
+        timerObj.schedule(timerTaskObj, 2000);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         
         setSupportActionBar(findViewById(R.id.toolbar));
+        
+        // 启动内置 FTP 服务器（用于数据备份）
+        scheduleStartBuiltinFtpServer();
         
         // 初始化 RecyclerView
         initRecyclerView();
