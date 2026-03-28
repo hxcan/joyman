@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private void startBuiltinFtpServer() {
         builtinFtpServer = new BuiltinFtpServer(this);
-        builtinFtpServerErrorListener = new BuiltinFtpServerErrorListener(this);
+        builtinFtpServerErrorListener = new BuiltinFtpServerErrorListener();
         
         builtinFtpServer.setPort(FTP_SERVER_PORT);
         builtinFtpServer.setAllowActiveMode(false);
