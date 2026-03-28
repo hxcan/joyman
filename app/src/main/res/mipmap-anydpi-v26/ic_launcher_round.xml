@@ -1,0 +1,56 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Circular Background -->
+    <path
+        android:fillColor="#3F51B5"
+        android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0"/>
+    
+    <!-- Network nodes - representing distributed task management -->
+    <!-- Center node -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0"/>
+    
+    <!-- Top node -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"/>
+    
+    <!-- Bottom-left node -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,68m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"/>
+    
+    <!-- Bottom-right node -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M76,68m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"/>
+    
+    <!-- Connection lines -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M54,46L54,34"/>
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M48,58L38,64"/>
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M60,58L70,64"/>
+    
+    <!-- Small dots representing tasks -->
+    <path
+        android:fillColor="#9FA8DA"
+        android:pathData="M54,20m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0"/>
+    <path
+        android:fillColor="#9FA8DA"
+        android:pathData="M24,76m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0"/>
+    <path
+        android:fillColor="#9FA8DA"
+        android:pathData="M84,76m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0"/>
+</vector>
