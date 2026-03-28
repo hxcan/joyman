@@ -41,11 +41,13 @@
             </intent-filter>
         </activity>
         
-        <!-- Future Sister AI integration -->
+        <!-- Future Sister AI integration - Temporarily removed (class not implemented) -->
+        <!-- 
         <activity
             android:name=".VoiceTaskActivity"
             android:exported="false"
             android:label="@string/voice_task_title" />
+        -->
             
     </application>
 
