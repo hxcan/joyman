@@ -52,6 +52,10 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.6.1'
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
     
+    // Builtin FTP Server - Updated to latest version
+    implementation 'com.github.hxcan:builtinftp:2025.12.15'
+    implementation 'com.github.hxcan:ftpserver:2023.9.8'
+
     // Gson for JSON
     implementation 'com.google.code.gson:gson:2.10.1'
     
