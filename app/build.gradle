@@ -16,22 +16,10 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-    }
-
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-        debug {
-            signingConfig signingConfigs.debug
         }
     }
     
@@ -52,6 +40,10 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.6.1'
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
     
+    // Builtin FTP Server
+    implementation 'com.github.hxcan:builtinftp:2023.5.12'
+    implementation 'com.github.hxcan:ftpserver:2023.9.8'
+
     // Gson for JSON
     implementation 'com.google.code.gson:gson:2.10.1'
     
