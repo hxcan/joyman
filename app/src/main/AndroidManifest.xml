@@ -41,12 +41,6 @@
             </intent-filter>
         </activity>
         
-        <!-- Fix Manifest merger conflict from ShutDownAt2100Helper -->
-        <receiver
-            android:name="com.stupidbeauty.shutdownat2100androidnative.BootBroadcastReceiver"
-            android:exported="false"
-            tools:node="merge" />
-        
         <!-- Future Sister AI integration - Temporarily removed (class not implemented) -->
         <!-- 
         <activity
