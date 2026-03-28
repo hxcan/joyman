@@ -37,6 +37,13 @@ jobs:
       if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
       run: ./gradlew assembleRelease
 
+    - name: Install Build Tools via SDK Manager
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
+      run: |
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin
+        yes | sdkmanager "build-tools;29.0.3"
+
     - name: Sign Release APK
       if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
       id: sign_release
@@ -47,8 +54,6 @@ jobs:
         alias: ${{ secrets.KEYSTORE_ALIAS }}
         keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
         keyPassword: ${{ secrets.KEY_STORE_PASSWORD }}
-      env:
-        BUILD_TOOLS_VERSION: "29.0.3"
 
     - name: Upload APK artifact (PR)
       if: github.event_name == 'pull_request'
