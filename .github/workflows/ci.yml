@@ -50,6 +50,19 @@ jobs:
       env:
         BUILD_TOOLS_VERSION: "29.0.3"
 
+    - name: Sign Release APK
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
+      id: sign_release
+      uses: r0adkll/sign-android-release@v1
+      with:
+        releaseDirectory: app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.APK_KEY_STORE }}
+        alias: ${{ secrets.KEYSTORE_ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_STORE_PASSWORD }}
+      env:
+        BUILD_TOOLS_VERSION: "29.0.3"
+
     - name: Upload APK artifact (PR)
       if: github.event_name == 'pull_request'
       uses: actions/upload-artifact@v4
@@ -67,6 +80,7 @@ jobs:
         files: |
           app/build/outputs/apk/debug/app-debug.apk
           ${{ steps.sign_debug.outputs.signedReleaseFile }}
+          ${{ steps.sign_release.outputs.signedReleaseFile }}
         prerelease: true
         generate_release_notes: true
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -79,10 +93,12 @@ jobs:
           
           ---
           ### 📦 下载
-          - **Debug 版**: `app-debug.apk` (自动签名，仅供测试)
-          - **Signed Debug 版**: 签名后的 APK (使用统一 debug keystore，可覆盖安装)
+          - **Debug 版**: `app-debug.apk` (未签名，仅供测试)
+          - **Signed Debug 版**: 签名后的 Debug APK (使用统一 debug keystore，可覆盖安装)
+          - **Release 版**: 签名后的 Release APK (正式签名，可覆盖安装和正式分发)
           
-          ⚠️ Signed Debug 版本使用项目统一的 debug keystore 签名，支持覆盖安装和调试分发。
+          ⚠️ **Release 版本**使用正式证书签名，支持覆盖安装和正式分发。  
+          ⚠️ **Signed Debug 版本**使用项目统一的 debug.keystore 签名，支持调试和覆盖安装。
           
           ### 🔗 下载方式
           点击上方的文件即可下载，**无需登录**。
@@ -91,4 +107,5 @@ jobs:
           - **JDK**: 17
           - **Android Gradle Plugin**: 根据项目配置
           - **构建类型**: Debug & Release
-          - **签名密钥**: 项目统一 debug.keystore
+          - **Debug 签名密钥**: 项目统一 debug.keystore
+          - **Release 签名密钥**: 正式证书 (通过 Secrets 管理)
