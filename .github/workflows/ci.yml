@@ -1,8 +1,8 @@
-name: Android CI
+name: Android CI and Release
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "release/*" ]
   pull_request:
     branches: [ "master" ]
 
@@ -33,9 +33,64 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
-    - name: Upload APK
+    - name: Build Release APK
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
+      run: ./gradlew assembleRelease
+
+    - name: Sign Release APK
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
+      id: sign_release
+      uses: r0adkll/sign-android-release@v1
+      with:
+        releaseDirectory: app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.APK_KEY_STORE }}
+        alias: ${{ secrets.KEYSTORE_ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_STORE_PASSWORD }}
+      env:
+        BUILD_TOOLS_VERSION: "29.0.3"
+
+    - name: Upload APK artifact (PR)
+      if: github.event_name == 'pull_request'
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
+
+    - name: Create CI Release (master/release push)
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/'))
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ci/auto-build-${{ github.run_number }}
+        name: 🤖 JoyMan CI Build #${{ github.run_number }}
+        files: |
+          app/build/outputs/apk/debug/app-debug.apk
+          ${{ steps.sign_release.outputs.signedReleaseFile }}
+        prerelease: true
+        generate_release_notes: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          ## 🤖 自动构建版本
+          
+          **构建编号:** ${{ github.run_number }}
+          **提交:** ${{ github.sha }}
+          **时间:** ${{ github.event.head_commit.timestamp }}
+          
+          ---
+          ### 📦 下载
+          - **Debug 版**: `app-debug.apk` (使用 debug.keystore 签名，可覆盖安装)
+          - **Release 版**: 签名后的 Release APK (正式证书签名，可覆盖安装和正式分发)
+          
+          ⚠️ **Debug 版本**使用项目统一的 debug.keystore 签名，本地编译和 CI 构建签名一致，支持无缝覆盖安装。  
+          ⚠️ **Release 版本**使用正式证书签名，支持覆盖安装和正式分发。
+          
+          ### 🔗 下载方式
+          点击上方的文件即可下载，**无需登录**。
+          
+          ### 🔧 技术细节
+          - **JDK**: 17
+          - **Android Gradle Plugin**: 根据项目配置
+          - **构建类型**: Debug & Release
+          - **Debug 签名密钥**: 项目统一 debug.keystore (本地和 CI 一致)
+          - **Release 签名密钥**: 正式证书 (通过 Secrets 管理)
