@@ -1,82 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView 
+<androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="4dp"
     app:cardCornerRadius="8dp"
-    app:cardElevation="4dp"
-    app:cardBackgroundColor="@android:color/white">
+    app:cardElevation="2dp"
+    android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="horizontal"
+        android:padding="12dp">
 
-        <!-- 任务标题 -->
-        <TextView
-            android:id="@+id/text_task_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceSubtitle1"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end"
-            tools:text="这是一个非常长的任务标题示例" />
+        <!-- 优先级指示器 -->
+        <View
+            android:id="@+id/view_priority_indicator"
+            android:layout_width="4dp"
+            android:layout_height="match_parent"
+            android:background="#2196F3"
+            android:layout_marginEnd="12dp" />
 
-        <!-- 任务描述 -->
-        <TextView
-            android:id="@+id/text_task_description"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textAppearance="?attr/textAppearanceBody2"
-            android:textColor="?android:attr/textColorSecondary"
-            android:maxLines="3"
-            android:ellipsize="end"
-            tools:text="这是任务的详细描述内容，可能会比较长，需要截断显示..." />
-
-        <!-- 优先级和状态行 -->
+        <!-- 任务内容 -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <!-- 优先级标签 -->
+            <!-- 标题 -->
             <TextView
-                android:id="@+id/text_task_priority"
-                android:layout_width="0dp"
+                android:id="@+id/text_task_title"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textAppearance="?attr/textAppearanceCaption"
+                android:textSize="16sp"
                 android:textStyle="bold"
-                android:drawableStart="@android:drawable/btn_star_big_on"
-                android:drawablePadding="4dp"
-                android:gravity="center_vertical"
-                tools:text="高"
-                tools:textColor="@android:color/holo_orange_dark" />
+                android:textColor="#212121"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:text="任务标题" />
 
-            <!-- 状态标签 -->
+            <!-- 描述 -->
             <TextView
-                android:id="@+id/text_task_status"
-                android:layout_width="0dp"
+                android:id="@+id/text_task_description"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textAppearance="?attr/textAppearanceCaption"
-                android:gravity="end|center_vertical"
-                android:background="@android:drawable/edit_text"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
-                tools:text="进行中" />
+                android:layout_marginTop="4dp"
+                android:textSize="14sp"
+                android:textColor="#757575"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:text="任务描述"
+                android:visibility="gone" />
+
+            <!-- 时间戳 -->
+            <TextView
+                android:id="@+id/text_task_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="12sp"
+                android:textColor="#9E9E9E"
+                android:text="03-31 12:00" />
 
         </LinearLayout>
 
+        <!-- 状态按钮 -->
+        <TextView
+            android:id="@+id/text_task_status"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="12dp"
+            android:gravity="center"
+            android:textSize="24sp"
+            android:text="○"
+            android:textColor="#9E9E9E"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true" />
+
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+</androidx.cardview.widget.CardView>
