@@ -9,7 +9,9 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
+import com.stupidbeauty.joyman.data.database.dao.ProjectDao;
 import com.stupidbeauty.joyman.data.database.dao.TaskDao;
+import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 
 /**
@@ -21,8 +23,8 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
  * 数据库信息：
  * - 名称：joyman-db
  * - 版本：1（初始版本）
- * - 实体类：Task（后续添加 Project、Tag 等）
- * - DAO 接口：TaskDao（后续添加 ProjectDao 等）
+ * - 实体类：Task, Project
+ * - DAO 接口：TaskDao, ProjectDao
  * 
  * 迁移策略：
  * - 支持增量迁移（addMigrations）
@@ -34,8 +36,9 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
  */
 @Database(
     entities = {
-        Task.class
-        // 未来添加：Project.class, Tag.class, Comment.class, etc.
+        Task.class,
+        Project.class
+        // 未来添加：Tag.class, Comment.class, Attachment.class, etc.
     },
     version = 1,
     exportSchema = true
@@ -58,6 +61,13 @@ public abstract class AppDatabase extends RoomDatabase {
      * @return Task 数据访问对象
      */
     public abstract TaskDao taskDao();
+    
+    /**
+     * 获取 ProjectDao
+     * 
+     * @return Project 数据访问对象
+     */
+    public abstract ProjectDao projectDao();
     
     /**
      * 获取数据库实例（单例模式，双重检查锁定）
@@ -102,8 +112,8 @@ public abstract class AppDatabase extends RoomDatabase {
                 public void onCreate(@NonNull SupportSQLiteDatabase db) {
                     super.onCreate(db);
                     // 数据库首次创建时的初始化逻辑
-                    // 例如：预填充一些默认数据
-                    android.util.Log.d("AppDatabase", "Database created successfully");
+                    // 例如：预填充一些默认项目
+                    android.util.Log.d("AppDatabase", "Database created successfully with Task and Project tables");
                 }
                 
                 @Override
@@ -119,19 +129,30 @@ public abstract class AppDatabase extends RoomDatabase {
     /**
      * 数据库迁移策略：版本 1 -> 版本 2
      * 
-     * 示例：添加 Project 表
-     * （当前为空实现，实际使用时需要填写具体的 SQL 语句）
+     * 示例迁移框架，实际使用时需要填写具体的 SQL 语句
+     * 
+     * 可能的迁移操作：
+     * - 添加新表（如 tags, comments）
+     * - 添加新字段（如 tasks.project_id）
+     * - 修改现有表结构
+     * - 数据转换和清理
      */
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
-            // 示例：创建新表
-            // database.execSQL("CREATE TABLE IF NOT EXISTS projects (...)");
+            // 示例 1: 创建新表
+            // database.execSQL("CREATE TABLE IF NOT EXISTS tags (" +
+            //     "id INTEGER PRIMARY KEY NOT NULL, " +
+            //     "name TEXT NOT NULL, " +
+            //     "color TEXT, " +
+            //     "created_at INTEGER NOT NULL" +
+            // ")");
             
-            // 示例：添加新字段
-            // database.execSQL("ALTER TABLE tasks ADD COLUMN new_column TEXT DEFAULT ''");
+            // 示例 2: 添加新字段到现有表
+            // database.execSQL("ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
+            // database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
             
-            // 示例：数据迁移
+            // 示例 3: 数据迁移
             // database.execSQL("UPDATE tasks SET status = 0 WHERE status IS NULL");
             
             android.util.Log.d("AppDatabase", "Migrated from version 1 to version 2");
