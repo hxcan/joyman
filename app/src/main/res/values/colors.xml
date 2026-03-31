@@ -1,35 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 主色调 - 科技蓝 -->
+    <!-- 主题色 -->
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
     <color name="primary_light">#BBDEFB</color>
-    
-    <!-- 辅助色 - 活力橙 -->
-    <color name="accent">#FF9800</color>
-    <color name="accent_dark">#F57C00</color>
-    
+    <color name="accent">#FF5722</color>
+
     <!-- 文本颜色 -->
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
-    <color name="text_hint">#BDBDBD</color>
-    
+    <color name="text_hint">#9E9E9E</color>
+    <color name="divider">#BDBDBD</color>
+
     <!-- 背景色 -->
     <color name="background">#FAFAFA</color>
-    <color name="surface">#FFFFFF</color>
-    
+    <color name="card_background">#FFFFFF</color>
+
     <!-- 状态颜色 -->
     <color name="success">#4CAF50</color>
-    <color name="warning">#FFC107</color>
     <color name="error">#F44336</color>
+    <color name="warning">#FF9800</color>
     <color name="info">#2196F3</color>
-    
+
     <!-- 优先级颜色 -->
-    <color name="priority_low">#9E9E9E</color>
-    <color name="priority_normal">#212121</color>
-    <color name="priority_high">#FF9800</color>
     <color name="priority_urgent">#F44336</color>
-    
-    <!-- 分隔线 -->
-    <color name="divider">#BDBDBD</color>
+    <color name="priority_high">#FF9800</color>
+    <color name="priority_normal">#2196F3</color>
+    <color name="priority_low">#9E9E9E</color>
 </resources>
