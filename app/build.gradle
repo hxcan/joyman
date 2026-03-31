@@ -1,46 +1,3 @@
-plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.stupidbeauty.joyman'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.stupidbeauty.joyman"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-        debug {
-            signingConfig signingConfigs.debug
-        }
-    }
-    
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -52,9 +9,8 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.6.1'
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
     
-    // Builtin FTP Server - Updated to latest version
-    implementation 'com.github.hxcan:builtinftp:2025.12.15'
-    implementation 'com.github.hxcan:ftpserver:2023.9.8'
+    // Builtin FTP Server - Updated to latest version with LIST command fix
+    implementation 'com.github.hxcan:builtinftp:2026.3.31'
 
     // Gson for JSON
     implementation 'com.google.code.gson:gson:2.10.1'
