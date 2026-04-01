@@ -28,7 +28,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.2
+ * @version 1.0.3
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -211,7 +211,7 @@ public class TaskDetailActivity extends AppCompatActivity {
                         Log.d(TAG, "onItemSelected: Pending project set to null");
                     } else {
                         pendingProjectId = selectedProject.getId();
-                        Log.d(TAG, "onItemSelected: Pending project set to: " + selectedProject.getId());
+                        Log.d(TAG, "onItemSelected: Pending project set to: " + selectedProject.getId() + " (class: " + selectedProject.getId().getClass().getSimpleName() + ")");
                     }
                     
                     Log.d(TAG, "onItemSelected: END (waiting for manual save)");
@@ -245,8 +245,18 @@ public class TaskDetailActivity extends AppCompatActivity {
         
         // 检查是否有实际变更
         Long currentProjectId = task.getProjectId();
-        if ((currentProjectId == null && pendingProjectId == null) ||
-            (currentProjectId != null && currentProjectId.equals(pendingProjectId))) {
+        Log.d(TAG, "saveProjectSelection: currentProjectId = " + (currentProjectId == null ? "null" : currentProjectId));
+        Log.d(TAG, "saveProjectSelection: pendingProjectId = " + (pendingProjectId == null ? "null" : pendingProjectId));
+        Log.d(TAG, "saveProjectSelection: currentProjectId class = " + (currentProjectId == null ? "null" : currentProjectId.getClass().getSimpleName()));
+        Log.d(TAG, "saveProjectSelection: pendingProjectId class = " + (pendingProjectId == null ? "null" : pendingProjectId.getClass().getSimpleName()));
+        
+        boolean isNullBoth = (currentProjectId == null && pendingProjectId == null);
+        boolean isSameValue = (currentProjectId != null && pendingProjectId != null && currentProjectId.equals(pendingProjectId));
+        
+        Log.d(TAG, "saveProjectSelection: isNullBoth = " + isNullBoth);
+        Log.d(TAG, "saveProjectSelection: isSameValue = " + isSameValue);
+        
+        if (isNullBoth || isSameValue) {
             Log.d(TAG, "saveProjectSelection: No change detected");
             Toast.makeText(this, "项目未变更", Toast.LENGTH_SHORT).show();
             return;
