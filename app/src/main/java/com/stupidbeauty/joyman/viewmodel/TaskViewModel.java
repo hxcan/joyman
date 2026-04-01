@@ -32,16 +32,9 @@ public class TaskViewModel extends AndroidViewModel {
     
     public LiveData<List<Task>> getAllTasks() { return allTasks; }
     public LiveData<List<Task>> getIncompleteTasks() { return incompleteTasks; }
-    public LiveData<Task> getTaskById(long taskId) { return repository.getTaskByIdLive(taskId); }
-    public LiveData<List<Task>> getTasksByStatus(int status) { return repository.getTasksByStatusLive(status); }
-    public LiveData<List<Task>> searchTasks(String keyword) { return repository.searchTasksLive(keyword); }
-    
-    /**
-     * 按项目查询任务
-     */
-    public LiveData<List<Task>> getTasksByProject(long projectId) {
-        return repository.getTasksByProjectLive(projectId);
-    }
+    public LiveData<List<Task>> getTasksByStatusLive(int status) { return repository.getTasksByStatusLive(status); }
+    public LiveData<List<Task>> searchTasksLive(String keyword) { return repository.searchTasksLive(keyword); }
+    public LiveData<List<Task>> getTasksByProject(long projectId) { return repository.getTasksByProjectLive(projectId); }
     
     public void insert(Task task) { repository.insert(task); }
     public void update(Task task) { repository.update(task); }
