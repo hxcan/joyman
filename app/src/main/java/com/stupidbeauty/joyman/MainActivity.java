@@ -234,13 +234,4 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         
         return super.onOptionsItemSelected(item);
     }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // 关闭 FTP 服务器
-        if (builtinFtpServer != null) {
-            builtinFtpServer.stop();
-        }
-    }
 }
