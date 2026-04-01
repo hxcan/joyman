@@ -28,7 +28,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.4
+ * @version 1.0.5
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -50,7 +50,7 @@ public class TaskDetailActivity extends AppCompatActivity {
     private Spinner spinnerProject;
     
     private List<Project> projectList;
-    private Long pendingProjectId; // 待保存的项目 ID
+    private Long pendingProjectId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,12 +141,10 @@ public class TaskDetailActivity extends AppCompatActivity {
             projectList = new ArrayList<>();
             List<String> projectNames = new ArrayList<>();
             
-            // 添加"无项目"选项
             projectList.add(null);
             projectNames.add("无项目");
             LogUtils.getInstance().d(TAG, "loadProjects: Added 'no project' option");
             
-            // 添加所有项目
             if (projects != null) {
                 for (Project project : projects) {
                     projectList.add(project);
@@ -166,7 +164,6 @@ public class TaskDetailActivity extends AppCompatActivity {
             spinnerProject.setAdapter(adapter);
             LogUtils.getInstance().d(TAG, "loadProjects: Adapter created and set");
             
-            // 设置当前选中的项目
             if (task != null && task.getProjectId() != null) {
                 LogUtils.getInstance().d(TAG, "loadProjects: Setting selection for task with projectId: " + task.getProjectId());
                 for (int i = 0; i < projectList.size(); i++) {
@@ -182,7 +179,6 @@ public class TaskDetailActivity extends AppCompatActivity {
                 spinnerProject.setSelection(0);
             }
             
-            // 监听项目选择变化 - 仅更新 UI，不自动保存
             spinnerProject.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
@@ -205,13 +201,12 @@ public class TaskDetailActivity extends AppCompatActivity {
                     LogUtils.getInstance().d(TAG, "onItemSelected: Selected project: " + (selectedProject == null ? "null" : selectedProject.getName()));
                     LogUtils.getInstance().d(TAG, "onItemSelected: Current task projectId: " + (task == null ? "null" : task.getProjectId()));
                     
-                    // 仅记录待保存的项目 ID，不立即保存
                     if (selectedProject == null) {
                         pendingProjectId = null;
                         LogUtils.getInstance().d(TAG, "onItemSelected: Pending project set to null");
                     } else {
                         pendingProjectId = selectedProject.getId();
-                        LogUtils.getInstance().d(TAG, "onItemSelected: Pending project set to: " + selectedProject.getId() + " (class: " + selectedProject.getId().getClass().getSimpleName() + ")");
+                        LogUtils.getInstance().d(TAG, "onItemSelected: Pending project set to: " + selectedProject.getId());
                     }
                     
                     LogUtils.getInstance().d(TAG, "onItemSelected: END (waiting for manual save)");
@@ -229,10 +224,6 @@ public class TaskDetailActivity extends AppCompatActivity {
         });
     }
     
-    /**
-     * 保存项目选择更改
-     * 由用户点击"保存项目更改"按钮触发
-     */
     private void saveProjectSelection() {
         LogUtils.getInstance().d(TAG, "=================================================================");
         LogUtils.getInstance().d(TAG, "saveProjectSelection: START");
@@ -243,12 +234,9 @@ public class TaskDetailActivity extends AppCompatActivity {
             return;
         }
         
-        // 检查是否有实际变更
         Long currentProjectId = task.getProjectId();
         LogUtils.getInstance().d(TAG, "saveProjectSelection: currentProjectId = " + (currentProjectId == null ? "null" : currentProjectId));
         LogUtils.getInstance().d(TAG, "saveProjectSelection: pendingProjectId = " + (pendingProjectId == null ? "null" : pendingProjectId));
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: currentProjectId class = " + (currentProjectId == null ? "null" : currentProjectId.getClass().getSimpleName()));
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: pendingProjectId class = " + (pendingProjectId == null ? "null" : pendingProjectId.getClass().getSimpleName()));
         
         boolean isNullBoth = (currentProjectId == null && pendingProjectId == null);
         boolean isSameValue = (currentProjectId != null && pendingProjectId != null && currentProjectId.equals(pendingProjectId));
@@ -262,7 +250,6 @@ public class TaskDetailActivity extends AppCompatActivity {
             return;
         }
         
-        // 执行保存
         if (pendingProjectId == null) {
             LogUtils.getInstance().i(TAG, "saveProjectSelection: Removing project association");
             task.setProjectId(null);
@@ -273,7 +260,6 @@ public class TaskDetailActivity extends AppCompatActivity {
             task.setProjectId(pendingProjectId);
             taskViewModel.update(task);
             
-            // 查找项目名称用于 Toast
             String projectName = "未知";
             if (projectList != null) {
                 for (Project p : projectList) {
@@ -311,7 +297,6 @@ public class TaskDetailActivity extends AppCompatActivity {
         textStatus.setText("状态：" + task.getStatusText());
         textPriority.setText("优先级：" + task.getPriorityText());
         
-        // 显示所属项目
         Long projectId = task.getProjectId();
         LogUtils.getInstance().i(TAG, "updateUI: Task project ID: " + (projectId == null ? "null" : projectId));
         
