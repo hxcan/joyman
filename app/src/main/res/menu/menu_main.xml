@@ -3,31 +3,38 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_manage_projects"
+        android:icon="@android:drawable/ic_menu_agenda"
+        android:title="@string/manage_projects"
+        android:orderInCategory="1"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_sync"
         android:icon="@android:drawable/ic_popup_sync"
         android:title="@string/sync"
-        android:orderInCategory="1"
+        android:orderInCategory="2"
         app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_export"
         android:icon="@android:drawable/stat_sys_upload"
         android:title="@string/export"
-        android:orderInCategory="2"
+        android:orderInCategory="3"
         app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_import"
         android:icon="@android:drawable/stat_sys_download"
         android:title="@string/import_text"
-        android:orderInCategory="3"
+        android:orderInCategory="4"
         app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_settings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="@string/settings"
-        android:orderInCategory="4"
+        android:orderInCategory="5"
         app:showAsAction="never" />
 
 </menu>

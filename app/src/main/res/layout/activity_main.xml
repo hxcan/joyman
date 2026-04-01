@@ -20,6 +20,15 @@
             app:popupTheme="@style/Theme.JoyMan.PopupOverlay"
             app:title="@string/app_name" />
 
+        <!-- 项目筛选 Spinner -->
+        <Spinner
+            android:id="@+id/spinner_projects"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@android:color/white"
+            android:paddingHorizontal="16dp"
+            android:layout_marginBottom="8dp" />
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.recyclerview.widget.RecyclerView
