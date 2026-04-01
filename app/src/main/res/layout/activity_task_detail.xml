@@ -118,7 +118,7 @@
                 android:id="@+id/spinner_detail_project"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="16dp" />
 
             <!-- 保存项目更改按钮 -->
             <Button
@@ -127,7 +127,7 @@
                 android:layout_height="wrap_content"
                 android:text="保存项目更改"
                 android:backgroundTint="#4CAF50"
-                android:layout_marginBottom="24dp" />
+                android:layout_marginBottom="12dp" />
 
             <!-- 操作按钮 -->
             <Button
