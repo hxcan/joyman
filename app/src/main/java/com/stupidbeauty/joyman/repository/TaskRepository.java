@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.0
+ * @version 2.0.1
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -104,16 +104,11 @@ public class TaskRepository {
     
     public LiveData<List<Task>> getAllTasksLive() { return allTasksLive; }
     public Task getTaskById(long taskId) { return taskDao.getTaskById(taskId); }
+    public LiveData<Task> getTaskByIdLive(long taskId) { return taskDao.getTaskByIdLive(taskId); }
     public LiveData<List<Task>> getTasksByStatusLive(int status) { return taskDao.getTasksByStatusLive(status); }
     public LiveData<List<Task>> getIncompleteTasksLive() { return taskDao.getIncompleteTasksLive(); }
     public LiveData<List<Task>> searchTasksLive(String keyword) { return taskDao.searchTasksLive(keyword); }
-    
-    /**
-     * 按项目查询任务
-     */
-    public LiveData<List<Task>> getTasksByProjectLive(long projectId) {
-        return taskDao.getTasksByProject(projectId);
-    }
+    public LiveData<List<Task>> getTasksByProjectLive(long projectId) { return taskDao.getTasksByProject(projectId); }
     
     public int getTaskCount() { return taskDao.getTaskCount(); }
     

@@ -12,14 +12,18 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
 
 import java.util.List;
 
+/**
+ * Task 数据访问对象（DAO）
+ * 
+ * @author 太极美术工程狮狮长
+ * @version 2.0.1
+ * @since 2026-03-31
+ */
 @Dao
 public interface TaskDao {
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insert(Task task);
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    List<Long> insertAll(List<Task> tasks);
     
     @Update
     int update(Task task);
@@ -35,6 +39,9 @@ public interface TaskDao {
     
     @Query("SELECT * FROM tasks WHERE id = :taskId")
     Task getTaskById(long taskId);
+    
+    @Query("SELECT * FROM tasks WHERE id = :taskId")
+    LiveData<Task> getTaskByIdLive(long taskId);
     
     @Query("SELECT * FROM tasks WHERE status = :status ORDER BY priority DESC, created_at DESC")
     LiveData<List<Task>> getTasksByStatusLive(int status);

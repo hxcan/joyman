@@ -1,5 +1,6 @@
 package com.stupidbeauty.joyman;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -36,7 +37,7 @@ import java.util.TimerTask;
  * JoyMan 主界面 - 任务列表展示
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.2
+ * @version 3.0.3
  * @since 2026-04-01
  */
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener, ProjectAdapter.OnProjectClickListener {
@@ -98,7 +99,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                     selectedProject = null;
                     loadAllTasks();
                 } else {
-                    // 修复：直接使用 position，因为 projectList[0]=null, projectList[1]=第一个项目
                     selectedProject = projectList.get(position);
                     if (selectedProject != null) {
                         loadTasksByProject(selectedProject.getId());
@@ -330,7 +330,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
 
     @Override
     public void onTaskClick(Task task) {
-        Toast.makeText(this, "点击了：" + task.getTitle(), Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(this, TaskDetailActivity.class);
+        intent.putExtra(TaskDetailActivity.EXTRA_TASK_ID, task.getId());
+        startActivity(intent);
     }
 
     @Override

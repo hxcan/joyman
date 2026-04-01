@@ -2,23 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Network permissions for P2P sync -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    
-    <!-- Bluetooth for device discovery -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    
-    <!-- Storage for task package export/import -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" 
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"
         tools:ignore="ScopedStorage" />
 
     <application
@@ -41,14 +36,18 @@
             </intent-filter>
         </activity>
         
-        <!-- Future Sister AI integration - Temporarily removed (class not implemented) -->
-        <!-- 
+        <!-- Task Detail Activity -->
         <activity
-            android:name=".VoiceTaskActivity"
+            android:name=".TaskDetailActivity"
             android:exported="false"
-            android:label="@string/voice_task_title" />
-        -->
-            
+            android:label="任务详情"
+            android:theme="@style/Theme.JoyMan.NoActionBar"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
+        
     </application>
 
 </manifest>
