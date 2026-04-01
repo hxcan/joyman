@@ -23,6 +23,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+
 /**
  * 任务详情界面
  * 
@@ -49,6 +50,7 @@ public class TaskDetailActivity extends AppCompatActivity {
     private Spinner spinnerProject;
     
     private List<Project> projectList;
+    private Long pendingProjectId; // 待保存的项目 ID
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +103,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         findViewById(R.id.btn_toggle_status).setOnClickListener(v -> toggleStatus());
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
+        findViewById(R.id.btn_save_project).setOnClickListener(v -> saveProjectSelection());
         Log.d(TAG, "initViews: Views initialized and listeners set");
     }
     
@@ -179,7 +182,7 @@ public class TaskDetailActivity extends AppCompatActivity {
                 spinnerProject.setSelection(0);
             }
             
-            // 监听项目选择变化
+            // 监听项目选择变化 - 仅更新 UI，不自动保存
             spinnerProject.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
@@ -202,36 +205,16 @@ public class TaskDetailActivity extends AppCompatActivity {
                     Log.d(TAG, "onItemSelected: Selected project: " + (selectedProject == null ? "null" : selectedProject.getName()));
                     Log.d(TAG, "onItemSelected: Current task projectId: " + (task == null ? "null" : task.getProjectId()));
                     
+                    // 仅记录待保存的项目 ID，不立即保存
                     if (selectedProject == null) {
-                        // 选择了"无项目"
-                        if (task != null && task.getProjectId() != null) {
-                            Log.i(TAG, "onItemSelected: Removing project association");
-                            task.setProjectId(null);
-                            taskViewModel.update(task);
-                            Toast.makeText(TaskDetailActivity.this, "已移除项目关联", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Log.d(TAG, "onItemSelected: No change needed (already no project)");
-                        }
+                        pendingProjectId = null;
+                        Log.d(TAG, "onItemSelected: Pending project set to null");
                     } else {
-                        // 选择了具体项目
-                        if (task == null) {
-                            Log.e(TAG, "onItemSelected: Task is null!");
-                            return;
-                        }
-                        
-                        if (task.getProjectId() == null || task.getProjectId() != selectedProject.getId()) {
-                            Log.i(TAG, "onItemSelected: Moving task to project: " + selectedProject.getName() + " (ID: " + selectedProject.getId() + ")");
-                            task.setProjectId(selectedProject.getId());
-                            Log.d(TAG, "onItemSelected: Calling taskViewModel.update()");
-                            taskViewModel.update(task);
-                            Toast.makeText(TaskDetailActivity.this, "已移动到项目：" + selectedProject.getName(), Toast.LENGTH_SHORT).show();
-                        } else {
-                            Log.d(TAG, "onItemSelected: No change needed (same project)");
-                        }
+                        pendingProjectId = selectedProject.getId();
+                        Log.d(TAG, "onItemSelected: Pending project set to: " + selectedProject.getId());
                     }
                     
-                    updateUI();
-                    Log.d(TAG, "onItemSelected: END");
+                    Log.d(TAG, "onItemSelected: END (waiting for manual save)");
                     Log.d(TAG, "=================================================================");
                 }
                 
@@ -244,6 +227,59 @@ public class TaskDetailActivity extends AppCompatActivity {
             Log.d(TAG, "loadProjects: Listener set up");
             Log.d(TAG, "loadProjects: END");
         });
+    }
+    
+    /**
+     * 保存项目选择更改
+     * 由用户点击"保存项目更改"按钮触发
+     */
+    private void saveProjectSelection() {
+        Log.d(TAG, "=================================================================");
+        Log.d(TAG, "saveProjectSelection: START");
+        
+        if (task == null) {
+            Log.w(TAG, "saveProjectSelection: Task is null");
+            Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 检查是否有实际变更
+        Long currentProjectId = task.getProjectId();
+        if ((currentProjectId == null && pendingProjectId == null) ||
+            (currentProjectId != null && currentProjectId.equals(pendingProjectId))) {
+            Log.d(TAG, "saveProjectSelection: No change detected");
+            Toast.makeText(this, "项目未变更", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 执行保存
+        if (pendingProjectId == null) {
+            Log.i(TAG, "saveProjectSelection: Removing project association");
+            task.setProjectId(null);
+            taskViewModel.update(task);
+            Toast.makeText(this, "已移除项目关联", Toast.LENGTH_SHORT).show();
+        } else {
+            Log.i(TAG, "saveProjectSelection: Saving project: " + pendingProjectId);
+            task.setProjectId(pendingProjectId);
+            taskViewModel.update(task);
+            
+            // 查找项目名称用于 Toast
+            String projectName = "未知";
+            if (projectList != null) {
+                for (Project p : projectList) {
+                    if (p != null && p.getId() == pendingProjectId) {
+                        projectName = p.getName();
+                        break;
+                    }
+                }
+            }
+            Toast.makeText(this, "已保存到：📁 " + projectName, Toast.LENGTH_SHORT).show();
+        }
+        
+        updateUI();
+        pendingProjectId = null;
+        Log.d(TAG, "saveProjectSelection: END");
+        Log.d(TAG, "=================================================================");
     }
     
     private void updateUI() {
