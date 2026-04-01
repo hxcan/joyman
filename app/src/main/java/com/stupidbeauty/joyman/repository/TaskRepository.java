@@ -25,14 +25,12 @@ public class TaskRepository {
     
     private final TaskDao taskDao;
     private final LiveData<List<Task>> allTasksLive;
-    private final LiveData<List<Task>> incompleteTasksLive;
     private final ExecutorService executorService;
     
     private TaskRepository(Application application) {
         AppDatabase database = AppDatabase.getInstance(application);
         taskDao = database.taskDao();
         allTasksLive = taskDao.getAllTasksLive();
-        incompleteTasksLive = taskDao.getIncompleteTasksLive();
         executorService = Executors.newFixedThreadPool(4);
     }
     
@@ -54,15 +52,6 @@ public class TaskRepository {
         });
     }
     
-    public void insertAll(List<Task> tasks) {
-        executorService.execute(() -> {
-            for (Task task : tasks) {
-                if (task.getId() == 0) task.setId(IdGenerator.generateId());
-            }
-            taskDao.insertAll(tasks);
-        });
-    }
-    
     public long createTask(String title) {
         long id = IdGenerator.generateId();
         Task task = new Task(id, title);
@@ -79,7 +68,6 @@ public class TaskRepository {
     }
     
     public void update(Task task) { executorService.execute(() -> taskDao.update(task)); }
-    public void updateAll(List<Task> tasks) { executorService.execute(() -> taskDao.updateAll(tasks)); }
     
     public void markTaskAsDone(long taskId) {
         executorService.execute(() -> {
@@ -113,15 +101,11 @@ public class TaskRepository {
     
     public void delete(Task task) { executorService.execute(() -> taskDao.delete(task)); }
     public void deleteById(long taskId) { executorService.execute(() -> taskDao.deleteById(taskId)); }
-    public void deleteAll(List<Task> tasks) { executorService.execute(() -> taskDao.deleteAll(tasks)); }
     
     public LiveData<List<Task>> getAllTasksLive() { return allTasksLive; }
-    public List<Task> getAllTasks() { return taskDao.getAllTasks(); }
     public Task getTaskById(long taskId) { return taskDao.getTaskById(taskId); }
-    public LiveData<Task> getTaskByIdLive(long taskId) { return taskDao.getTaskByIdLive(taskId); }
     public LiveData<List<Task>> getTasksByStatusLive(int status) { return taskDao.getTasksByStatusLive(status); }
-    public LiveData<List<Task>> getIncompleteTasksLive() { return incompleteTasksLive; }
-    public List<Task> getOverdueTasks() { return taskDao.getOverdueTasks(System.currentTimeMillis()); }
+    public LiveData<List<Task>> getIncompleteTasksLive() { return taskDao.getIncompleteTasksLive(); }
     public LiveData<List<Task>> searchTasksLive(String keyword) { return taskDao.searchTasksLive(keyword); }
     
     /**
@@ -132,8 +116,6 @@ public class TaskRepository {
     }
     
     public int getTaskCount() { return taskDao.getTaskCount(); }
-    public int getIncompleteTaskCount() { return taskDao.getIncompleteTaskCount(); }
-    public int getOverdueTaskCount() { return taskDao.getOverdueTaskCount(System.currentTimeMillis()); }
     
     public void shutdown() { executorService.shutdown(); }
 }
