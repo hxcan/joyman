@@ -11,19 +11,8 @@ import java.util.Date;
  * 对应数据库表：tasks
  * 用于存储单个任务的完整信息
  * 
- * 字段说明：
- * - id: 14 位数字 ID，主键，由 IdGenerator 生成
- * - title: 任务标题（必填，最大长度 200 字符）
- * - description: 任务描述（可选，最大长度 5000 字符）
- * - status: 任务状态（0=待办，1=进行中，2=已完成，3=已取消）
- * - priority: 优先级（1=低，2=普通，3=高，4=紧急）
- * - createdAt: 创建时间（毫秒级时间戳）
- * - updatedAt: 最后更新时间（毫秒级时间戳）
- * - dueDate: 截止时间（可选，毫秒级时间戳）
- * - tags: 标签（可选，JSON 格式存储）
- * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 2.0.0
  * @since 2026-03-31
  */
 @Entity(tableName = "tasks")
@@ -32,18 +21,18 @@ public class Task {
     /**
      * 任务状态常量
      */
-    public static final int STATUS_TODO = 0;      // 待办
-    public static final int STATUS_IN_PROGRESS = 1; // 进行中
-    public static final int STATUS_DONE = 2;        // 已完成
-    public static final int STATUS_CANCELLED = 3;   // 已取消
+    public static final int STATUS_TODO = 0;
+    public static final int STATUS_IN_PROGRESS = 1;
+    public static final int STATUS_DONE = 2;
+    public static final int STATUS_CANCELLED = 3;
     
     /**
      * 优先级常量
      */
-    public static final int PRIORITY_LOW = 1;      // 低
-    public static final int PRIORITY_NORMAL = 2;   // 普通
-    public static final int PRIORITY_HIGH = 3;     // 高
-    public static final int PRIORITY_URGENT = 4;   // 紧急
+    public static final int PRIORITY_LOW = 1;
+    public static final int PRIORITY_NORMAL = 2;
+    public static final int PRIORITY_HIGH = 3;
+    public static final int PRIORITY_URGENT = 4;
     
     /**
      * 主键 ID（14 位数字）
@@ -77,6 +66,12 @@ public class Task {
     private int priority;
     
     /**
+     * 所属项目 ID（可选，外键）
+     */
+    @ColumnInfo(name = "project_id", defaultValue = "NULL")
+    private Long projectId;
+    
+    /**
      * 创建时间（毫秒级时间戳）
      */
     @ColumnInfo(name = "created_at")
@@ -102,18 +97,9 @@ public class Task {
     
     // ==================== 构造函数 ====================
     
-    /**
-     * 默认构造函数（Room 需要）
-     */
     public Task() {
     }
     
-    /**
-     * 快速创建任务（仅标题）
-     * 
-     * @param id 任务 ID（由 IdGenerator 生成）
-     * @param title 任务标题
-     */
     public Task(long id, String title) {
         this.id = id;
         this.title = title;
@@ -123,9 +109,6 @@ public class Task {
         this.updatedAt = this.createdAt;
     }
     
-    /**
-     * 完整构造函数
-     */
     public Task(long id, String title, String description, int status, int priority, 
                 long createdAt, long updatedAt, Long dueDate, String tags) {
         this.id = id;
@@ -141,77 +124,52 @@ public class Task {
     
     // ==================== Getter 和 Setter ====================
     
-    public long getId() {
-        return id;
-    }
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
     
-    public void setId(long id) {
-        this.id = id;
-    }
-    
-    public String getTitle() {
-        return title;
-    }
-    
+    public String getTitle() { return title; }
     public void setTitle(String title) {
         this.title = title;
+        this.updatedAt = System.currentTimeMillis();
     }
     
-    public String getDescription() {
-        return description;
-    }
-    
+    public String getDescription() { return description; }
     public void setDescription(String description) {
         this.description = description;
+        this.updatedAt = System.currentTimeMillis();
     }
     
-    public int getStatus() {
-        return status;
-    }
-    
+    public int getStatus() { return status; }
     public void setStatus(int status) {
         this.status = status;
         this.updatedAt = System.currentTimeMillis();
     }
     
-    public int getPriority() {
-        return priority;
-    }
-    
+    public int getPriority() { return priority; }
     public void setPriority(int priority) {
         this.priority = priority;
         this.updatedAt = System.currentTimeMillis();
     }
     
-    public long getCreatedAt() {
-        return createdAt;
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
+        this.updatedAt = System.currentTimeMillis();
     }
     
-    public void setCreatedAt(long createdAt) {
-        this.createdAt = createdAt;
-    }
+    public long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     
-    public long getUpdatedAt() {
-        return updatedAt;
-    }
+    public long getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
     
-    public void setUpdatedAt(long updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-    
-    public Long getDueDate() {
-        return dueDate;
-    }
-    
+    public Long getDueDate() { return dueDate; }
     public void setDueDate(Long dueDate) {
         this.dueDate = dueDate;
         this.updatedAt = System.currentTimeMillis();
     }
     
-    public String getTags() {
-        return tags;
-    }
-    
+    public String getTags() { return tags; }
     public void setTags(String tags) {
         this.tags = tags;
         this.updatedAt = System.currentTimeMillis();
@@ -219,40 +177,14 @@ public class Task {
     
     // ==================== 辅助方法 ====================
     
-    /**
-     * 检查任务是否已完成
-     */
-    public boolean isDone() {
-        return status == STATUS_DONE;
-    }
-    
-    /**
-     * 检查任务是否已取消
-     */
-    public boolean isCancelled() {
-        return status == STATUS_CANCELLED;
-    }
-    
-    /**
-     * 检查任务是否有截止时间
-     */
-    public boolean hasDueDate() {
-        return dueDate != null;
-    }
-    
-    /**
-     * 检查任务是否已过期
-     */
+    public boolean isDone() { return status == STATUS_DONE; }
+    public boolean isCancelled() { return status == STATUS_CANCELLED; }
+    public boolean hasDueDate() { return dueDate != null; }
     public boolean isOverdue() {
-        if (dueDate == null) {
-            return false;
-        }
+        if (dueDate == null) return false;
         return !isDone() && !isCancelled() && System.currentTimeMillis() > dueDate;
     }
     
-    /**
-     * 获取状态文本描述
-     */
     public String getStatusText() {
         switch (status) {
             case STATUS_TODO: return "待办";
@@ -263,9 +195,6 @@ public class Task {
         }
     }
     
-    /**
-     * 获取优先级文本描述
-     */
     public String getPriorityText() {
         switch (priority) {
             case PRIORITY_LOW: return "低";
@@ -276,8 +205,6 @@ public class Task {
         }
     }
     
-    // ==================== Object 方法重写 ====================
-    
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -287,9 +214,7 @@ public class Task {
     }
     
     @Override
-    public int hashCode() {
-        return Long.hashCode(id);
-    }
+    public int hashCode() { return Long.hashCode(id); }
     
     @Override
     public String toString() {
@@ -298,7 +223,7 @@ public class Task {
                 ", title='" + title + '\'' +
                 ", status=" + getStatusText() +
                 ", priority=" + getPriorityText() +
-                ", createdAt=" + new Date(createdAt) +
+                ", projectId=" + projectId +
                 '}';
     }
 }
