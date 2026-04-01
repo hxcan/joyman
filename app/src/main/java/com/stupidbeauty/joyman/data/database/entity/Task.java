@@ -3,6 +3,7 @@ package com.stupidbeauty.joyman.data.database.entity;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.ColumnInfo;
+import androidx.room.Index;
 import java.util.Date;
 
 /**
@@ -12,10 +13,15 @@ import java.util.Date;
  * 用于存储单个任务的完整信息
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.0
+ * @version 2.0.1
  * @since 2026-03-31
  */
-@Entity(tableName = "tasks")
+@Entity(
+    tableName = "tasks",
+    indices = {
+        @Index(value = {"project_id"})
+    }
+)
 public class Task {
     
     /**
