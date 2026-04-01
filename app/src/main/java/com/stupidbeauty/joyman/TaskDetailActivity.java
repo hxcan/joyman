@@ -28,7 +28,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.5
+ * @version 1.0.6
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -164,61 +164,7 @@ public class TaskDetailActivity extends AppCompatActivity {
             spinnerProject.setAdapter(adapter);
             LogUtils.getInstance().d(TAG, "loadProjects: Adapter created and set");
             
-            if (task != null && task.getProjectId() != null) {
-                LogUtils.getInstance().d(TAG, "loadProjects: Setting selection for task with projectId: " + task.getProjectId());
-                for (int i = 0; i < projectList.size(); i++) {
-                    Project p = projectList.get(i);
-                    if (p != null && p.getId() == task.getProjectId()) {
-                        spinnerProject.setSelection(i);
-                        LogUtils.getInstance().d(TAG, "loadProjects: Selected index: " + i);
-                        break;
-                    }
-                }
-            } else {
-                LogUtils.getInstance().d(TAG, "loadProjects: Task has no project, selecting 'no project'");
-                spinnerProject.setSelection(0);
-            }
-            
-            spinnerProject.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
-                    LogUtils.getInstance().d(TAG, "=================================================================");
-                    LogUtils.getInstance().d(TAG, "onItemSelected: START - Position: " + position);
-                    LogUtils.getInstance().d(TAG, "onItemSelected: Activity is destroyed: " + isDestroyed());
-                    LogUtils.getInstance().d(TAG, "onItemSelected: Activity is finishing: " + isFinishing());
-                    
-                    if (isDestroyed()) {
-                        LogUtils.getInstance().w(TAG, "onItemSelected: Activity already destroyed, ignoring selection");
-                        return;
-                    }
-                    
-                    if (position >= projectList.size()) {
-                        LogUtils.getInstance().e(TAG, "onItemSelected: Invalid position: " + position + ", projectList size: " + projectList.size());
-                        return;
-                    }
-                    
-                    Project selectedProject = projectList.get(position);
-                    LogUtils.getInstance().d(TAG, "onItemSelected: Selected project: " + (selectedProject == null ? "null" : selectedProject.getName()));
-                    LogUtils.getInstance().d(TAG, "onItemSelected: Current task projectId: " + (task == null ? "null" : task.getProjectId()));
-                    
-                    if (selectedProject == null) {
-                        pendingProjectId = null;
-                        LogUtils.getInstance().d(TAG, "onItemSelected: Pending project set to null");
-                    } else {
-                        pendingProjectId = selectedProject.getId();
-                        LogUtils.getInstance().d(TAG, "onItemSelected: Pending project set to: " + selectedProject.getId());
-                    }
-                    
-                    LogUtils.getInstance().d(TAG, "onItemSelected: END (waiting for manual save)");
-                    LogUtils.getInstance().d(TAG, "=================================================================");
-                }
-                
-                @Override
-                public void onNothingSelected(android.widget.AdapterView<?> parent) {
-                    LogUtils.getInstance().d(TAG, "onNothingSelected: Called");
-                }
-            });
-            
+            // 注意：不在这里设置选择位置，等 updateUI() 中统一设置
             LogUtils.getInstance().d(TAG, "loadProjects: Listener set up");
             LogUtils.getInstance().d(TAG, "loadProjects: END");
         });
@@ -314,6 +260,18 @@ public class TaskDetailActivity extends AppCompatActivity {
                             textProject.setText(projectDisplay);
                             LogUtils.getInstance().i(TAG, "updateUI: Project found! Display: " + projectDisplay);
                             found = true;
+                            
+                            // 同时更新 Spinner 的选择位置
+                            if (projectList != null) {
+                                for (int i = 0; i < projectList.size(); i++) {
+                                    Project sp = projectList.get(i);
+                                    if (sp != null && sp.getId() == projectId) {
+                                        LogUtils.getInstance().d(TAG, "updateUI: Setting spinner selection to index: " + i);
+                                        spinnerProject.setSelection(i);
+                                        break;
+                                    }
+                                }
+                            }
                             break;
                         }
                     }
@@ -327,6 +285,10 @@ public class TaskDetailActivity extends AppCompatActivity {
         } else {
             LogUtils.getInstance().i(TAG, "updateUI: Task has no project");
             textProject.setText("所属项目：无");
+            if (projectList != null) {
+                LogUtils.getInstance().d(TAG, "updateUI: Setting spinner selection to index: 0 (no project)");
+                spinnerProject.setSelection(0);
+            }
         }
         
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
