@@ -36,7 +36,7 @@ import java.util.TimerTask;
  * JoyMan 主界面 - 任务列表展示
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.1
+ * @version 3.0.2
  * @since 2026-04-01
  */
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener, ProjectAdapter.OnProjectClickListener {
@@ -98,8 +98,11 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                     selectedProject = null;
                     loadAllTasks();
                 } else {
-                    selectedProject = projectList.get(position - 1);
-                    loadTasksByProject(selectedProject.getId());
+                    // 修复：直接使用 position，因为 projectList[0]=null, projectList[1]=第一个项目
+                    selectedProject = projectList.get(position);
+                    if (selectedProject != null) {
+                        loadTasksByProject(selectedProject.getId());
+                    }
                 }
             }
             
