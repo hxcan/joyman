@@ -1,23 +1,24 @@
 package com.stupidbeauty.joyman.repository;
 
 import android.app.Application;
-import android.util.Log;
 import androidx.lifecycle.LiveData;
 
 import com.stupidbeauty.joyman.data.database.AppDatabase;
 import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.IdGenerator;
+import com.stupidbeauty.joyman.util.LogUtils;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.2
+ * @version 2.0.3
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -28,14 +29,18 @@ public class TaskRepository {
     private final TaskDao taskDao;
     private final LiveData<List<Task>> allTasksLive;
     private final ExecutorService executorService;
+    private final AtomicBoolean isShutdown;
+    private final LogUtils logUtils;
     
     private TaskRepository(Application application) {
-        Log.d(TAG, "Constructor: Creating repository for app: " + application.getPackageName());
+        logUtils = LogUtils.getInstance();
+        logUtils.d(TAG, "Constructor: Creating repository for app: " + application.getPackageName());
         AppDatabase database = AppDatabase.getInstance(application);
         taskDao = database.taskDao();
         allTasksLive = taskDao.getAllTasksLive();
         executorService = Executors.newFixedThreadPool(4);
-        Log.d(TAG, "Constructor: Thread pool created with 4 threads: " + executorService.toString());
+        isShutdown = new AtomicBoolean(false);
+        logUtils.d(TAG, "Constructor: Thread pool created with 4 threads");
     }
     
     public static TaskRepository getInstance(Application application) {
@@ -43,232 +48,321 @@ public class TaskRepository {
             synchronized (TaskRepository.class) {
                 if (INSTANCE == null) {
                     INSTANCE = new TaskRepository(application);
-                    Log.i(TAG, "getInstance: Created new instance");
+                    logUtils.i(TAG, "getInstance: Created new instance");
                 }
             }
         } else {
-            Log.i(TAG, "getInstance: Returning existing instance");
+            logUtils.i(TAG, "getInstance: Returning existing instance");
         }
         return INSTANCE;
     }
     
     public void insert(Task task) {
-        Log.d(TAG, "insert: Starting for task ID: " + task.getId() + ", title: " + task.getTitle());
-        Log.d(TAG, "insert: Thread pool state before: " + executorService.toString());
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ insert() called after shutdown, ignoring task: " + 
+                      (task != null ? task.getTitle() : "null"));
+            return;
+        }
         
-        executorService.execute(() -> {
-            try {
-                if (task.getId() == 0) task.setId(IdGenerator.generateId());
-                taskDao.insert(task);
-                Log.d(TAG, "insert: Task inserted successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "insert: Error inserting task", e);
-            }
-        });
+        logUtils.d(TAG, "📝 Submitting insert task for: " + (task != null ? task.getTitle() : "null"));
+        
+        try {
+            executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during insert");
+                    return;
+                }
+                
+                try {
+                    if (task.getId() == 0) task.setId(IdGenerator.generateId());
+                    taskDao.insert(task);
+                    logUtils.d(TAG, "✅ Task inserted successfully: " + task.getTitle());
+                } catch (Exception e) {
+                    logUtils.e(TAG, "❌ Error inserting task", e);
+                }
+            });
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to submit insert task - executor may be shutdown", e);
+        }
     }
     
     public long createTask(String title) {
-        Log.d(TAG, "createTask: Creating task with title: " + title);
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ createTask() called after shutdown, ignoring: " + title);
+            return 0;
+        }
+        
+        logUtils.d(TAG, "🆕 Creating task with title: " + title);
         long id = IdGenerator.generateId();
         Task task = new Task(id, title);
         insert(task);
+        logUtils.i(TAG, "🆕 Created task: " + title + " (ID: " + id + ")");
         return id;
     }
     
     public long createTask(String title, String description) {
-        Log.d(TAG, "createTask: Creating task with title: " + title + ", description: " + description);
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ createTask() with description called after shutdown, ignoring: " + title);
+            return 0;
+        }
+        
+        logUtils.d(TAG, "🆕 Creating task with title: " + title + ", description: " + description);
         long id = IdGenerator.generateId();
         Task task = new Task(id, title);
         task.setDescription(description);
         insert(task);
+        logUtils.i(TAG, "🆕 Created task with details: " + title + " (ID: " + id + ")");
         return id;
     }
     
     public void update(Task task) {
-        Log.d(TAG, "=================================================================");
-        Log.d(TAG, "update: START - Updating task ID: " + task.getId() + ", title: " + task.getTitle());
-        Log.d(TAG, "update: Thread pool state: " + executorService.toString());
-        Log.d(TAG, "update: isTerminated: " + executorService.isTerminated());
-        Log.d(TAG, "update: isShutdown: " + executorService.isShutdown());
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ update() called after shutdown, ignoring task: " + 
+                      (task != null ? task.getTitle() : "null"));
+            return;
+        }
+        
+        logUtils.d(TAG, "📝 Submitting update task for: " + (task != null ? task.getTitle() : "null"));
         
         try {
             executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during update");
+                    return;
+                }
+                
                 try {
-                    Log.d(TAG, "update: Executing in thread: " + Thread.currentThread().getName());
-                    Log.d(TAG, "update: Inside runnable - Thread pool state: " + executorService.toString());
                     taskDao.update(task);
-                    Log.i(TAG, "update: Task updated successfully in database");
+                    logUtils.i(TAG, "✅ Task updated successfully: " + (task != null ? task.getTitle() : "null"));
                 } catch (Exception e) {
-                    Log.e(TAG, "update: Error inside runnable", e);
+                    logUtils.e(TAG, "❌ Error updating task", e);
                 }
             });
-            Log.d(TAG, "update: execute() called successfully");
         } catch (Exception e) {
-            Log.e(TAG, "=================================================================");
-            Log.e(TAG, "update: EXCEPTION CAUGHT!");
-            Log.e(TAG, "update: Exception type: " + e.getClass().getSimpleName());
-            Log.e(TAG, "update: Exception message: " + e.getMessage());
-            Log.e(TAG, "update: Thread pool is terminated: " + executorService.isTerminated());
-            Log.e(TAG, "update: Thread pool is shutdown: " + executorService.isShutdown());
-            Log.e(TAG, "update: Stack trace:", e);
-            Log.e(TAG, "=================================================================");
+            logUtils.e(TAG, "❌ Failed to submit update task - executor may be shutdown", e);
             
-            // 降级方案：在主线程直接执行
-            Log.w(TAG, "update: FALLBACK - Executing update on main thread due to thread pool termination");
+            // Fallback: execute on main thread
+            logUtils.w(TAG, "🔄 FALLBACK - Executing update on main thread");
             try {
                 taskDao.update(task);
-                Log.i(TAG, "update: FALLBACK SUCCESS - Task updated on main thread");
+                logUtils.i(TAG, "✅ FALLBACK SUCCESS - Task updated on main thread");
             } catch (Exception ex) {
-                Log.e(TAG, "update: FALLBACK FAILED - Error updating on main thread", ex);
+                logUtils.e(TAG, "❌ FALLBACK FAILED - Error updating on main thread", ex);
             }
         }
-        
-        Log.d(TAG, "update: END");
-        Log.d(TAG, "=================================================================");
     }
     
     public void markTaskAsDone(long taskId) {
-        Log.d(TAG, "markTaskAsDone: Starting for task ID: " + taskId);
-        executorService.execute(() -> {
-            try {
-                Task task = taskDao.getTaskById(taskId);
-                if (task != null) {
-                    task.setStatus(Task.STATUS_DONE);
-                    taskDao.update(task);
-                    Log.i(TAG, "markTaskAsDone: Task marked as done");
-                } else {
-                    Log.w(TAG, "markTaskAsDone: Task not found");
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ markTaskAsDone() called after shutdown for ID: " + taskId);
+            return;
+        }
+        
+        try {
+            executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during markTaskAsDone");
+                    return;
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "markTaskAsDone: Error", e);
-            }
-        });
+                
+                try {
+                    Task task = taskDao.getTaskById(taskId);
+                    if (task != null) {
+                        task.setStatus(Task.STATUS_DONE);
+                        taskDao.update(task);
+                        logUtils.i(TAG, "✅ Task marked as done: " + taskId);
+                    } else {
+                        logUtils.w(TAG, "⚠️ Task not found: " + taskId);
+                    }
+                } catch (Exception e) {
+                    logUtils.e(TAG, "❌ Error in markTaskAsDone", e);
+                }
+            });
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to submit markTaskAsDone task", e);
+        }
     }
     
     public void markTaskAsTodo(long taskId) {
-        Log.d(TAG, "markTaskAsTodo: Starting for task ID: " + taskId);
-        executorService.execute(() -> {
-            try {
-                Task task = taskDao.getTaskById(taskId);
-                if (task != null) {
-                    task.setStatus(Task.STATUS_TODO);
-                    taskDao.update(task);
-                    Log.i(TAG, "markTaskAsTodo: Task marked as todo");
-                } else {
-                    Log.w(TAG, "markTaskAsTodo: Task not found");
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ markTaskAsTodo() called after shutdown for ID: " + taskId);
+            return;
+        }
+        
+        try {
+            executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during markTaskAsTodo");
+                    return;
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "markTaskAsTodo: Error", e);
-            }
-        });
+                
+                try {
+                    Task task = taskDao.getTaskById(taskId);
+                    if (task != null) {
+                        task.setStatus(Task.STATUS_TODO);
+                        taskDao.update(task);
+                        logUtils.i(TAG, "✅ Task marked as todo: " + taskId);
+                    } else {
+                        logUtils.w(TAG, "⚠️ Task not found: " + taskId);
+                    }
+                } catch (Exception e) {
+                    logUtils.e(TAG, "❌ Error in markTaskAsTodo", e);
+                }
+            });
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to submit markTaskAsTodo task", e);
+        }
     }
     
     public void setTaskPriority(long taskId, int priority) {
-        Log.d(TAG, "setTaskPriority: Starting for task ID: " + taskId + ", priority: " + priority);
-        executorService.execute(() -> {
-            try {
-                Task task = taskDao.getTaskById(taskId);
-                if (task != null) {
-                    task.setPriority(priority);
-                    taskDao.update(task);
-                    Log.i(TAG, "setTaskPriority: Priority updated");
-                } else {
-                    Log.w(TAG, "setTaskPriority: Task not found");
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ setTaskPriority() called after shutdown for ID: " + taskId);
+            return;
+        }
+        
+        try {
+            executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during setTaskPriority");
+                    return;
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "setTaskPriority: Error", e);
-            }
-        });
+                
+                try {
+                    Task task = taskDao.getTaskById(taskId);
+                    if (task != null) {
+                        task.setPriority(priority);
+                        taskDao.update(task);
+                        logUtils.i(TAG, "✅ Priority updated for task: " + taskId);
+                    } else {
+                        logUtils.w(TAG, "⚠️ Task not found: " + taskId);
+                    }
+                } catch (Exception e) {
+                    logUtils.e(TAG, "❌ Error in setTaskPriority", e);
+                }
+            });
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to submit setTaskPriority task", e);
+        }
     }
     
     public void delete(Task task) {
-        Log.d(TAG, "delete: Deleting task ID: " + task.getId());
-        executorService.execute(() -> {
-            try {
-                taskDao.delete(task);
-                Log.i(TAG, "delete: Task deleted");
-            } catch (Exception e) {
-                Log.e(TAG, "delete: Error", e);
-            }
-        });
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ delete() called after shutdown for task: " + 
+                      (task != null ? task.getTitle() : "null"));
+            return;
+        }
+        
+        logUtils.d(TAG, "🗑️ Submitting delete task for: " + (task != null ? task.getTitle() : "null"));
+        
+        try {
+            executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during delete");
+                    return;
+                }
+                
+                try {
+                    taskDao.delete(task);
+                    logUtils.i(TAG, "✅ Task deleted: " + (task != null ? task.getTitle() : "null"));
+                } catch (Exception e) {
+                    logUtils.e(TAG, "❌ Error deleting task", e);
+                }
+            });
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to submit delete task", e);
+        }
     }
     
     public void deleteById(long taskId) {
-        Log.d(TAG, "deleteById: Deleting task ID: " + taskId);
-        executorService.execute(() -> {
-            try {
-                taskDao.deleteById(taskId);
-                Log.i(TAG, "deleteById: Task deleted by ID");
-            } catch (Exception e) {
-                Log.e(TAG, "deleteById: Error", e);
-            }
-        });
+        if (isShutdown.get()) {
+            logUtils.w(TAG, "⚠️ deleteById() called after shutdown for ID: " + taskId);
+            return;
+        }
+        
+        logUtils.d(TAG, "🗑️ Submitting deleteById task for ID: " + taskId);
+        
+        try {
+            executorService.execute(() -> {
+                if (isShutdown.get()) {
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during deleteById");
+                    return;
+                }
+                
+                try {
+                    taskDao.deleteById(taskId);
+                    logUtils.i(TAG, "✅ Task deleted by ID: " + taskId);
+                } catch (Exception e) {
+                    logUtils.e(TAG, "❌ Error deleting task by ID", e);
+                }
+            });
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to submit deleteById task", e);
+        }
     }
     
     public LiveData<List<Task>> getAllTasksLive() { 
-        Log.d(TAG, "getAllTasksLive: Returning live data");
+        logUtils.d(TAG, "📋 Returning all tasks live data");
         return allTasksLive; 
     }
     
     public Task getTaskById(long taskId) { 
-        Log.d(TAG, "getTaskById: Getting task ID: " + taskId);
+        logUtils.d(TAG, "🔍 Getting task by ID: " + taskId);
         return taskDao.getTaskById(taskId); 
     }
     
     public LiveData<Task> getTaskByIdLive(long taskId) { 
-        Log.d(TAG, "getTaskByIdLive: Getting live data for task ID: " + taskId);
+        logUtils.d(TAG, "🔍 Getting live data for task ID: " + taskId);
         return taskDao.getTaskByIdLive(taskId); 
     }
     
     public LiveData<List<Task>> getTasksByStatusLive(int status) { 
-        Log.d(TAG, "getTasksByStatusLive: Getting tasks with status: " + status);
+        logUtils.d(TAG, "📋 Getting tasks by status: " + status);
         return taskDao.getTasksByStatusLive(status); 
     }
     
     public LiveData<List<Task>> getIncompleteTasksLive() { 
-        Log.d(TAG, "getIncompleteTasksLive: Returning incomplete tasks");
+        logUtils.d(TAG, "📋 Returning incomplete tasks live data");
         return taskDao.getIncompleteTasksLive(); 
     }
     
     public LiveData<List<Task>> searchTasksLive(String keyword) { 
-        Log.d(TAG, "searchTasksLive: Searching with keyword: " + keyword);
+        logUtils.d(TAG, "🔍 Searching tasks with keyword: " + keyword);
         return taskDao.searchTasksLive(keyword); 
     }
     
     public LiveData<List<Task>> getTasksByProjectLive(long projectId) { 
-        Log.d(TAG, "getTasksByProjectLive: Getting tasks for project ID: " + projectId);
+        logUtils.d(TAG, "📋 Getting tasks for project ID: " + projectId);
         return taskDao.getTasksByProject(projectId); 
     }
     
     public int getTaskCount() { 
-        Log.d(TAG, "getTaskCount: Getting total count");
+        logUtils.d(TAG, "📊 Getting total task count");
         return taskDao.getTaskCount(); 
     }
     
     public void shutdown() { 
-        Log.i(TAG, "=================================================================");
-        Log.i(TAG, "shutdown: START - Shutting down repository");
-        Log.i(TAG, "shutdown: Thread pool state before shutdown: " + executorService.toString());
+        logUtils.i(TAG, "🛑 START - Shutting down repository");
+        logUtils.i(TAG, "Thread pool state before shutdown: terminated=" + executorService.isTerminated() + 
+                  ", shutdown=" + executorService.isShutdown());
+        
+        isShutdown.set(true);
         
         try {
             executorService.shutdown();
-            Log.i(TAG, "shutdown: Shutdown initiated successfully");
+            logUtils.i(TAG, "Shutdown initiated successfully");
             
-            // 等待一段时间让任务完成
             boolean terminated = executorService.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
-            Log.i(TAG, "shutdown: Await termination result: " + terminated);
-            Log.i(TAG, "shutdown: Thread pool state after shutdown: " + executorService.toString());
-            Log.i(TAG, "shutdown: isTerminated: " + executorService.isTerminated());
-            Log.i(TAG, "shutdown: isShutdown: " + executorService.isShutdown());
+            logUtils.i(TAG, "Await termination result: " + terminated);
+            logUtils.i(TAG, "Final state: terminated=" + executorService.isTerminated() + 
+                      ", shutdown=" + executorService.isShutdown());
         } catch (InterruptedException e) {
-            Log.e(TAG, "shutdown: Interrupted during shutdown", e);
+            logUtils.e(TAG, "Interrupted during shutdown", e);
             executorService.shutdownNow();
-            Log.w(TAG, "shutdown: Forced shutdown completed");
+            logUtils.w(TAG, "Forced shutdown completed");
         } catch (Exception e) {
-            Log.e(TAG, "shutdown: Unexpected error during shutdown", e);
+            logUtils.e(TAG, "Unexpected error during shutdown", e);
         }
         
-        Log.i(TAG, "shutdown: END");
-        Log.i(TAG, "=================================================================");
+        logUtils.i(TAG, "✅ END - Repository shutdown complete");
     }
 }
