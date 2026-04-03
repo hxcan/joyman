@@ -12,13 +12,12 @@ import com.stupidbeauty.joyman.util.LogUtils;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.6
+ * @version 2.0.7
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -29,7 +28,6 @@ public class TaskRepository {
     private final TaskDao taskDao;
     private final LiveData<List<Task>> allTasksLive;
     private final ExecutorService executorService;
-    private final AtomicBoolean isShutdown;
     private final LogUtils logUtils;
     
     private TaskRepository(Application application) {
@@ -39,21 +37,14 @@ public class TaskRepository {
         taskDao = database.taskDao();
         allTasksLive = taskDao.getAllTasksLive();
         executorService = Executors.newFixedThreadPool(4);
-        isShutdown = new AtomicBoolean(false);
-        logUtils.d(TAG, "Constructor: Thread pool created with 4 threads");
+        logUtils.d(TAG, "Constructor: Thread pool created with 4 threads - Repository will stay active for app lifetime");
     }
     
     public static TaskRepository getInstance(Application application) {
-        // 🔧 CRITICAL FIX: Check both null and isShutdown to handle race condition
-        if (INSTANCE == null || INSTANCE.isShutdown.get()) {
+        if (INSTANCE == null) {
             synchronized (TaskRepository.class) {
-                // Double-check with isShutdown flag
-                if (INSTANCE == null || INSTANCE.isShutdown.get()) {
-                    if (INSTANCE != null && INSTANCE.isShutdown.get()) {
-                        LogUtils.getInstance().i(TAG, "getInstance: Previous instance was shutdown, creating NEW instance");
-                    } else {
-                        LogUtils.getInstance().i(TAG, "getInstance: Created new instance");
-                    }
+                if (INSTANCE == null) {
+                    LogUtils.getInstance().i(TAG, "getInstance: Created new instance");
                     INSTANCE = new TaskRepository(application);
                 }
             }
@@ -64,21 +55,10 @@ public class TaskRepository {
     }
     
     public void insert(Task task) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ insert() called after shutdown, ignoring task: " + 
-                      (task != null ? task.getTitle() : "null"));
-            return;
-        }
-        
         logUtils.d(TAG, "📝 Submitting insert task for: " + (task != null ? task.getTitle() : "null"));
         
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during insert");
-                    return;
-                }
-                
                 try {
                     if (task.getId() == 0) task.setId(IdGenerator.generateId());
                     taskDao.insert(task);
@@ -88,16 +68,11 @@ public class TaskRepository {
                 }
             });
         } catch (Exception e) {
-            logUtils.e(TAG, "❌ Failed to submit insert task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit insert task", e);
         }
     }
     
     public long createTask(String title) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ createTask() called after shutdown, ignoring: " + title);
-            return 0;
-        }
-        
         logUtils.d(TAG, "🆕 Creating task with title: " + title);
         long id = IdGenerator.generateId();
         Task task = new Task(id, title);
@@ -107,11 +82,6 @@ public class TaskRepository {
     }
     
     public long createTask(String title, String description) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ createTask() with description called after shutdown, ignoring: " + title);
-            return 0;
-        }
-        
         logUtils.d(TAG, "🆕 Creating task with title: " + title + ", description: " + description);
         long id = IdGenerator.generateId();
         Task task = new Task(id, title);
@@ -122,21 +92,10 @@ public class TaskRepository {
     }
     
     public void update(Task task) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ update() called after shutdown, ignoring task: " + 
-                      (task != null ? task.getTitle() : "null"));
-            return;
-        }
-        
         logUtils.d(TAG, "📝 Submitting update task for: " + (task != null ? task.getTitle() : "null"));
         
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during update");
-                    return;
-                }
-                
                 try {
                     taskDao.update(task);
                     logUtils.i(TAG, "✅ Task updated successfully: " + (task != null ? task.getTitle() : "null"));
@@ -145,7 +104,7 @@ public class TaskRepository {
                 }
             });
         } catch (Exception e) {
-            logUtils.e(TAG, "❌ Failed to submit update task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit update task", e);
             
             // Fallback: execute on main thread
             logUtils.w(TAG, "🔄 FALLBACK - Executing update on main thread");
@@ -159,18 +118,8 @@ public class TaskRepository {
     }
     
     public void markTaskAsDone(long taskId) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ markTaskAsDone() called after shutdown for ID: " + taskId);
-            return;
-        }
-        
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during markTaskAsDone");
-                    return;
-                }
-                
                 try {
                     Task task = taskDao.getTaskById(taskId);
                     if (task != null) {
@@ -190,18 +139,8 @@ public class TaskRepository {
     }
     
     public void markTaskAsTodo(long taskId) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ markTaskAsTodo() called after shutdown for ID: " + taskId);
-            return;
-        }
-        
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during markTaskAsTodo");
-                    return;
-                }
-                
                 try {
                     Task task = taskDao.getTaskById(taskId);
                     if (task != null) {
@@ -221,18 +160,8 @@ public class TaskRepository {
     }
     
     public void setTaskPriority(long taskId, int priority) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ setTaskPriority() called after shutdown for ID: " + taskId);
-            return;
-        }
-        
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during setTaskPriority");
-                    return;
-                }
-                
                 try {
                     Task task = taskDao.getTaskById(taskId);
                     if (task != null) {
@@ -252,21 +181,10 @@ public class TaskRepository {
     }
     
     public void delete(Task task) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ delete() called after shutdown for task: " + 
-                      (task != null ? task.getTitle() : "null"));
-            return;
-        }
-        
         logUtils.d(TAG, "🗑️ Submitting delete task for: " + (task != null ? task.getTitle() : "null"));
         
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during delete");
-                    return;
-                }
-                
                 try {
                     taskDao.delete(task);
                     logUtils.i(TAG, "✅ Task deleted: " + (task != null ? task.getTitle() : "null"));
@@ -280,20 +198,10 @@ public class TaskRepository {
     }
     
     public void deleteById(long taskId) {
-        if (isShutdown.get()) {
-            logUtils.w(TAG, "⚠️ deleteById() called after shutdown for ID: " + taskId);
-            return;
-        }
-        
         logUtils.d(TAG, "🗑️ Submitting deleteById task for ID: " + taskId);
         
         try {
             executorService.execute(() -> {
-                if (isShutdown.get()) {
-                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during deleteById");
-                    return;
-                }
-                
                 try {
                     taskDao.deleteById(taskId);
                     logUtils.i(TAG, "✅ Task deleted by ID: " + taskId);
@@ -344,35 +252,5 @@ public class TaskRepository {
     public int getTaskCount() { 
         logUtils.d(TAG, "📊 Getting total task count");
         return taskDao.getTaskCount(); 
-    }
-    
-    public void shutdown() { 
-        logUtils.i(TAG, "🛑 START - Shutting down repository");
-        logUtils.i(TAG, "Thread pool state before shutdown: terminated=" + executorService.isTerminated() + 
-                  ", shutdown=" + executorService.isShutdown());
-        
-        isShutdown.set(true);
-        
-        try {
-            executorService.shutdown();
-            logUtils.i(TAG, "Shutdown initiated successfully");
-            
-            boolean terminated = executorService.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
-            logUtils.i(TAG, "Await termination result: " + terminated);
-            logUtils.i(TAG, "Final state: terminated=" + executorService.isTerminated() + 
-                      ", shutdown=" + executorService.isShutdown());
-        } catch (InterruptedException e) {
-            logUtils.e(TAG, "Interrupted during shutdown", e);
-            executorService.shutdownNow();
-            logUtils.w(TAG, "Forced shutdown completed");
-        } catch (Exception e) {
-            logUtils.e(TAG, "Unexpected error during shutdown", e);
-        }
-        
-        // 🔧 CRITICAL FIX: Reset singleton instance so next getInstance() creates a fresh one
-        INSTANCE = null;
-        logUtils.i(TAG, "✅ Singleton instance reset - next getInstance() will create new repository");
-        
-        logUtils.i(TAG, "✅ END - Repository shutdown complete");
     }
 }
