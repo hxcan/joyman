@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.4
+ * @version 2.0.5
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -362,6 +362,10 @@ public class TaskRepository {
         } catch (Exception e) {
             logUtils.e(TAG, "Unexpected error during shutdown", e);
         }
+        
+        // 🔧 CRITICAL FIX: Reset singleton instance so next getInstance() creates a fresh one
+        INSTANCE = null;
+        logUtils.i(TAG, "✅ Singleton instance reset - next getInstance() will create new repository");
         
         logUtils.i(TAG, "✅ END - Repository shutdown complete");
     }
