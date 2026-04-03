@@ -56,9 +56,9 @@
                     android:layout_height="40dp"
                     android:layout_marginStart="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@android:drawable/ic_menu_save"
-                    android:contentDescription="复制标题"
-                    android:tooltipText="复制标题到剪贴板" />
+                    android:src="@drawable/ic_copy"
+                    android:contentDescription="复制标题到剪贴板"
+                    android:tooltipText="复制标题" />
 
             </LinearLayout>
 
