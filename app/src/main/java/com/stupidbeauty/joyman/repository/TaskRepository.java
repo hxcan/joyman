@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.5
+ * @version 2.0.6
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -44,11 +44,17 @@ public class TaskRepository {
     }
     
     public static TaskRepository getInstance(Application application) {
-        if (INSTANCE == null) {
+        // 🔧 CRITICAL FIX: Check both null and isShutdown to handle race condition
+        if (INSTANCE == null || INSTANCE.isShutdown.get()) {
             synchronized (TaskRepository.class) {
-                if (INSTANCE == null) {
+                // Double-check with isShutdown flag
+                if (INSTANCE == null || INSTANCE.isShutdown.get()) {
+                    if (INSTANCE != null && INSTANCE.isShutdown.get()) {
+                        LogUtils.getInstance().i(TAG, "getInstance: Previous instance was shutdown, creating NEW instance");
+                    } else {
+                        LogUtils.getInstance().i(TAG, "getInstance: Created new instance");
+                    }
                     INSTANCE = new TaskRepository(application);
-                    LogUtils.getInstance().i(TAG, "getInstance: Created new instance");
                 }
             }
         } else {
