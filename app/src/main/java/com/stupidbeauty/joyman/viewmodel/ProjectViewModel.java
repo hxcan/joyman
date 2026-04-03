@@ -1,7 +1,6 @@
 package com.stupidbeauty.joyman.viewmodel;
 
 import android.app.Application;
-import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
@@ -10,35 +9,37 @@ import com.stupidbeauty.joyman.repository.ProjectRepository;
 
 import java.util.List;
 
+
 /**
  * Project ViewModel
  * 
- * MVVM 架构中的 ViewModel 层
- * 负责管理 Project 相关的 UI 数据
- * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.0.3
  * @since 2026-03-31
  */
 public class ProjectViewModel extends AndroidViewModel {
     
     private final ProjectRepository repository;
-    private final LiveData<List<Project>> allProjects;
-    private final LiveData<List<Project>> activeProjects;
+    private final LiveData<List<Project>> allProjectsLive;
+    private final LiveData<List<Project>> activeProjectsLive;
     
-    public ProjectViewModel(@NonNull Application application) {
+    public ProjectViewModel(Application application) {
         super(application);
         repository = ProjectRepository.getInstance(application);
-        allProjects = repository.getAllProjectsLive();
-        activeProjects = repository.getActiveProjectsLive();
+        allProjectsLive = repository.getAllProjectsLive();
+        activeProjectsLive = repository.getActiveProjectsLive();
     }
     
     public LiveData<List<Project>> getAllProjects() {
-        return allProjects;
+        return allProjectsLive;
     }
     
-    public LiveData<List<Project>> getActiveProjects() {
-        return activeProjects;
+    public LiveData<List<Project>> getAllProjectsLive() {
+        return allProjectsLive;
+    }
+    
+    public LiveData<List<Project>> getActiveProjectsLive() {
+        return activeProjectsLive;
     }
     
     public LiveData<Project> getProjectById(long projectId) {
@@ -47,10 +48,6 @@ public class ProjectViewModel extends AndroidViewModel {
     
     public LiveData<List<Project>> searchProjects(String keyword) {
         return repository.searchProjectsLive(keyword);
-    }
-    
-    public void insert(Project project) {
-        repository.insert(project);
     }
     
     public void update(Project project) {
@@ -89,9 +86,15 @@ public class ProjectViewModel extends AndroidViewModel {
         repository.setProjectIcon(projectId, icon);
     }
     
-    @Override
-    protected void onCleared() {
-        super.onCleared();
-        repository.shutdown();
+    public int getProjectCount() {
+        return repository.getProjectCount();
+    }
+    
+    public int getActiveProjectCount() {
+        return repository.getActiveProjectCount();
+    }
+    
+    public int getArchivedProjectCount() {
+        return repository.getArchivedProjectCount();
     }
 }
