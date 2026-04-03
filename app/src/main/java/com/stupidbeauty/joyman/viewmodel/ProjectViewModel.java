@@ -14,7 +14,7 @@ import java.util.List;
  * Project ViewModel
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.2
+ * @version 1.0.3
  * @since 2026-03-31
  */
 public class ProjectViewModel extends AndroidViewModel {
@@ -28,6 +28,10 @@ public class ProjectViewModel extends AndroidViewModel {
         repository = ProjectRepository.getInstance(application);
         allProjectsLive = repository.getAllProjectsLive();
         activeProjectsLive = repository.getActiveProjectsLive();
+    }
+    
+    public LiveData<List<Project>> getAllProjects() {
+        return allProjectsLive;
     }
     
     public LiveData<List<Project>> getAllProjectsLive() {
