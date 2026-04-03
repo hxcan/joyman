@@ -14,12 +14,13 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 /**
  * 日志工具类
  * 支持同时输出到 Logcat 和文件
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.1.0
  * @since 2026-04-01
  */
 public class LogUtils {
@@ -33,7 +34,9 @@ public class LogUtils {
     private ExecutorService executorService;
     private String currentLogFile;
     private SimpleDateFormat dateFormat;
+    private SimpleDateFormat hourFormat;
     private SimpleDateFormat timeFormat;
+    private String lastHourKey;
     
     /**
      * 获取单例实例
@@ -48,17 +51,26 @@ public class LogUtils {
     private LogUtils() {
         executorService = Executors.newSingleThreadExecutor();
         dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+        hourFormat = new SimpleDateFormat("HH", Locale.getDefault());
         timeFormat = new SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault());
+        lastHourKey = null;
         updateCurrentLogFile();
     }
     
     /**
-     * 更新当前日志文件路径（按日期分割）
+     * 更新当前日志文件路径（按小时分割）
      */
     private void updateCurrentLogFile() {
         String dateStr = dateFormat.format(new Date());
-        File logDir = getLogDirectory();
-        currentLogFile = new File(logDir, LOG_FILE_PREFIX + dateStr + LOG_FILE_SUFFIX).getAbsolutePath();
+        String hourStr = hourFormat.format(new Date());
+        String currentHourKey = dateStr + "_" + hourStr;
+        
+        // 只有当小时变化时才更新文件路径
+        if (!currentHourKey.equals(lastHourKey)) {
+            lastHourKey = currentHourKey;
+            File logDir = getLogDirectory();
+            currentLogFile = new File(logDir, LOG_FILE_PREFIX + dateStr + "_" + hourStr + LOG_FILE_SUFFIX).getAbsolutePath();
+        }
     }
     
     /**
@@ -78,7 +90,7 @@ public class LogUtils {
      */
     private void writeToFile(final String level, final String tag, final String message, final Throwable throwable) {
         executorService.execute(() -> {
-            // 检查是否需要切换日志文件（跨天情况）
+            // 检查是否需要切换日志文件（跨小时情况）
             updateCurrentLogFile();
             
             String timestamp = timeFormat.format(new Date());
