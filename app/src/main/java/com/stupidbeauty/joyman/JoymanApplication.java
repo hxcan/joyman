@@ -14,7 +14,11 @@ public class JoymanApplication extends Application {
         super.onCreate();
         
         // Initialize global crash detector - logs crashes to external storage
-        CrashHandler.init(this);
-        Log.i("JoymanApplication", "✅ Crash Detector initialized (v2026.4.5)");
+        try {
+            CrashHandler.init(this);
+            Log.i("JoymanApplication", "✅ Crash Detector initialized (v2026.4.5)");
+        } catch (Exception e) {
+            Log.e("JoymanApplication", "❌ Failed to initialize CrashHandler", e);
+        }
     }
 }
