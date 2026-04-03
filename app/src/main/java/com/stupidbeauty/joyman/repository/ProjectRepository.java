@@ -1,13 +1,13 @@
 package com.stupidbeauty.joyman.repository;
 
 import android.app.Application;
-import android.util.Log;
 import androidx.lifecycle.LiveData;
 
 import com.stupidbeauty.joyman.data.database.AppDatabase;
 import com.stupidbeauty.joyman.data.database.dao.ProjectDao;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.util.IdGenerator;
+import com.stupidbeauty.joyman.util.LogUtils;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * - 仓库模式：抽象数据源，统一访问接口
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.1
+ * @version 1.0.2
  * @since 2026-03-31
  */
 public class ProjectRepository {
@@ -44,6 +44,7 @@ public class ProjectRepository {
     private final LiveData<List<Project>> activeProjectsLive;
     private final ExecutorService executorService;
     private final AtomicBoolean isShutdown;
+    private final LogUtils logUtils;
     
     /**
      * 私有构造函数（单例模式）
@@ -63,8 +64,9 @@ public class ProjectRepository {
         // 创建线程池用于异步操作（固定 4 个线程）
         executorService = Executors.newFixedThreadPool(4);
         isShutdown = new AtomicBoolean(false);
+        logUtils = LogUtils.getInstance();
         
-        Log.i(TAG, "✅ Repository initialized with thread pool");
+        logUtils.i(TAG, "✅ Repository initialized with thread pool");
     }
     
     /**
@@ -93,15 +95,15 @@ public class ProjectRepository {
      */
     public void insert(Project project) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ insert() called after shutdown, ignoring task for project: " + 
-                  (project != null ? project.getName() : "null"));
+            logUtils.w(TAG, "⚠️ insert() called after shutdown, ignoring task for project: " + 
+                      (project != null ? project.getName() : "null"));
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during insert");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during insert");
                     return;
                 }
                 
@@ -111,14 +113,14 @@ public class ProjectRepository {
                         project.setId(IdGenerator.generateId());
                     }
                     projectDao.insert(project);
-                    Log.d(TAG, "✅ Inserted project: " + project.getName() + " (ID: " + project.getId() + ")");
+                    logUtils.d(TAG, "✅ Inserted project: " + project.getName() + " (ID: " + project.getId() + ")");
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error inserting project", e);
+                    logUtils.e(TAG, "❌ Error inserting project", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting insert task for project: " + (project != null ? project.getName() : "null"));
+            logUtils.d(TAG, "📝 Submitting insert task for project: " + (project != null ? project.getName() : "null"));
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit insert task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit insert task - executor may be shutdown", e);
         }
     }
     
@@ -129,15 +131,15 @@ public class ProjectRepository {
      */
     public void insertAll(List<Project> projects) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ insertAll() called after shutdown, ignoring " + 
-                  (projects != null ? projects.size() : 0) + " projects");
+            logUtils.w(TAG, "⚠️ insertAll() called after shutdown, ignoring " + 
+                      (projects != null ? projects.size() : 0) + " projects");
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during insertAll");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during insertAll");
                     return;
                 }
                 
@@ -148,14 +150,14 @@ public class ProjectRepository {
                         }
                     }
                     projectDao.insertAll(projects);
-                    Log.d(TAG, "✅ Inserted " + projects.size() + " projects");
+                    logUtils.d(TAG, "✅ Inserted " + projects.size() + " projects");
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error inserting projects", e);
+                    logUtils.e(TAG, "❌ Error inserting projects", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting insertAll task for " + (projects != null ? projects.size() : 0) + " projects");
+            logUtils.d(TAG, "📝 Submitting insertAll task for " + (projects != null ? projects.size() : 0) + " projects");
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit insertAll task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit insertAll task - executor may be shutdown", e);
         }
     }
     
@@ -169,7 +171,7 @@ public class ProjectRepository {
         long id = IdGenerator.generateId();
         Project project = new Project(id, name);
         insert(project);
-        Log.i(TAG, "🆕 Created project: " + name + " (ID: " + id + ")");
+        logUtils.i(TAG, "🆕 Created project: " + name + " (ID: " + id + ")");
         return id;
     }
     
@@ -187,7 +189,7 @@ public class ProjectRepository {
         project.setDescription(description);
         project.setColor(color);
         insert(project);
-        Log.i(TAG, "🆕 Created project with details: " + name + " (ID: " + id + ")");
+        logUtils.i(TAG, "🆕 Created project with details: " + name + " (ID: " + id + ")");
         return id;
     }
     
@@ -200,28 +202,28 @@ public class ProjectRepository {
      */
     public void update(Project project) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ update() called after shutdown, ignoring task for project: " + 
-                  (project != null ? project.getName() : "null"));
+            logUtils.w(TAG, "⚠️ update() called after shutdown, ignoring task for project: " + 
+                      (project != null ? project.getName() : "null"));
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during update");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during update");
                     return;
                 }
                 
                 try {
                     projectDao.update(project);
-                    Log.d(TAG, "✅ Updated project: " + (project != null ? project.getName() : "null"));
+                    logUtils.d(TAG, "✅ Updated project: " + (project != null ? project.getName() : "null"));
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error updating project", e);
+                    logUtils.e(TAG, "❌ Error updating project", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting update task for project: " + (project != null ? project.getName() : "null"));
+            logUtils.d(TAG, "📝 Submitting update task for project: " + (project != null ? project.getName() : "null"));
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit update task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit update task - executor may be shutdown", e);
         }
     }
     
@@ -232,28 +234,28 @@ public class ProjectRepository {
      */
     public void updateAll(List<Project> projects) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ updateAll() called after shutdown, ignoring " + 
-                  (projects != null ? projects.size() : 0) + " projects");
+            logUtils.w(TAG, "⚠️ updateAll() called after shutdown, ignoring " + 
+                      (projects != null ? projects.size() : 0) + " projects");
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during updateAll");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during updateAll");
                     return;
                 }
                 
                 try {
                     projectDao.updateAll(projects);
-                    Log.d(TAG, "✅ Updated " + projects.size() + " projects");
+                    logUtils.d(TAG, "✅ Updated " + projects.size() + " projects");
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error updating projects", e);
+                    logUtils.e(TAG, "❌ Error updating projects", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting updateAll task for " + (projects != null ? projects.size() : 0) + " projects");
+            logUtils.d(TAG, "📝 Submitting updateAll task for " + (projects != null ? projects.size() : 0) + " projects");
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit updateAll task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit updateAll task - executor may be shutdown", e);
         }
     }
     
@@ -264,13 +266,13 @@ public class ProjectRepository {
      */
     public void archiveProject(long projectId) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ archiveProject() called after shutdown for ID: " + projectId);
+            logUtils.w(TAG, "⚠️ archiveProject() called after shutdown for ID: " + projectId);
             return;
         }
         
         executorService.execute(() -> {
             if (isShutdown.get()) {
-                Log.w(TAG, "⚠️ Task rejected: executor shutdown during archiveProject");
+                logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during archiveProject");
                 return;
             }
             
@@ -278,9 +280,9 @@ public class ProjectRepository {
             if (project != null) {
                 project.setArchived(true);
                 projectDao.update(project);
-                Log.d(TAG, "✅ Archived project ID: " + projectId);
+                logUtils.d(TAG, "✅ Archived project ID: " + projectId);
             } else {
-                Log.w(TAG, "⚠️ Project not found for archiving: " + projectId);
+                logUtils.w(TAG, "⚠️ Project not found for archiving: " + projectId);
             }
         });
     }
@@ -292,13 +294,13 @@ public class ProjectRepository {
      */
     public void unarchiveProject(long projectId) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ unarchiveProject() called after shutdown for ID: " + projectId);
+            logUtils.w(TAG, "⚠️ unarchiveProject() called after shutdown for ID: " + projectId);
             return;
         }
         
         executorService.execute(() -> {
             if (isShutdown.get()) {
-                Log.w(TAG, "⚠️ Task rejected: executor shutdown during unarchiveProject");
+                logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during unarchiveProject");
                 return;
             }
             
@@ -306,9 +308,9 @@ public class ProjectRepository {
             if (project != null) {
                 project.setArchived(false);
                 projectDao.update(project);
-                Log.d(TAG, "✅ Unarchived project ID: " + projectId);
+                logUtils.d(TAG, "✅ Unarchived project ID: " + projectId);
             } else {
-                Log.w(TAG, "⚠️ Project not found for unarchiving: " + projectId);
+                logUtils.w(TAG, "⚠️ Project not found for unarchiving: " + projectId);
             }
         });
     }
@@ -321,13 +323,13 @@ public class ProjectRepository {
      */
     public void setProjectColor(long projectId, String color) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ setProjectColor() called after shutdown for ID: " + projectId);
+            logUtils.w(TAG, "⚠️ setProjectColor() called after shutdown for ID: " + projectId);
             return;
         }
         
         executorService.execute(() -> {
             if (isShutdown.get()) {
-                Log.w(TAG, "⚠️ Task rejected: executor shutdown during setProjectColor");
+                logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during setProjectColor");
                 return;
             }
             
@@ -335,7 +337,7 @@ public class ProjectRepository {
             if (project != null) {
                 project.setColor(color);
                 projectDao.update(project);
-                Log.d(TAG, "✅ Set color for project ID: " + projectId);
+                logUtils.d(TAG, "✅ Set color for project ID: " + projectId);
             }
         });
     }
@@ -348,13 +350,13 @@ public class ProjectRepository {
      */
     public void setProjectIcon(long projectId, String icon) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ setProjectIcon() called after shutdown for ID: " + projectId);
+            logUtils.w(TAG, "⚠️ setProjectIcon() called after shutdown for ID: " + projectId);
             return;
         }
         
         executorService.execute(() -> {
             if (isShutdown.get()) {
-                Log.w(TAG, "⚠️ Task rejected: executor shutdown during setProjectIcon");
+                logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during setProjectIcon");
                 return;
             }
             
@@ -362,7 +364,7 @@ public class ProjectRepository {
             if (project != null) {
                 project.setIcon(icon);
                 projectDao.update(project);
-                Log.d(TAG, "✅ Set icon for project ID: " + projectId);
+                logUtils.d(TAG, "✅ Set icon for project ID: " + projectId);
             }
         });
     }
@@ -376,28 +378,28 @@ public class ProjectRepository {
      */
     public void delete(Project project) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ delete() called after shutdown for project: " + 
-                  (project != null ? project.getName() : "null"));
+            logUtils.w(TAG, "⚠️ delete() called after shutdown for project: " + 
+                      (project != null ? project.getName() : "null"));
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during delete");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during delete");
                     return;
                 }
                 
                 try {
                     projectDao.delete(project);
-                    Log.d(TAG, "✅ Deleted project: " + (project != null ? project.getName() : "null"));
+                    logUtils.d(TAG, "✅ Deleted project: " + (project != null ? project.getName() : "null"));
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error deleting project", e);
+                    logUtils.e(TAG, "❌ Error deleting project", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting delete task for project: " + (project != null ? project.getName() : "null"));
+            logUtils.d(TAG, "📝 Submitting delete task for project: " + (project != null ? project.getName() : "null"));
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit delete task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit delete task - executor may be shutdown", e);
         }
     }
     
@@ -408,27 +410,27 @@ public class ProjectRepository {
      */
     public void deleteById(long projectId) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ deleteById() called after shutdown for ID: " + projectId);
+            logUtils.w(TAG, "⚠️ deleteById() called after shutdown for ID: " + projectId);
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during deleteById");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during deleteById");
                     return;
                 }
                 
                 try {
                     projectDao.deleteById(projectId);
-                    Log.d(TAG, "✅ Deleted project by ID: " + projectId);
+                    logUtils.d(TAG, "✅ Deleted project by ID: " + projectId);
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error deleting project by ID", e);
+                    logUtils.e(TAG, "❌ Error deleting project by ID", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting deleteById task for ID: " + projectId);
+            logUtils.d(TAG, "📝 Submitting deleteById task for ID: " + projectId);
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit deleteById task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit deleteById task - executor may be shutdown", e);
         }
     }
     
@@ -439,28 +441,28 @@ public class ProjectRepository {
      */
     public void deleteAll(List<Project> projects) {
         if (isShutdown.get()) {
-            Log.w(TAG, "⚠️ deleteAll() called after shutdown for " + 
-                  (projects != null ? projects.size() : 0) + " projects");
+            logUtils.w(TAG, "⚠️ deleteAll() called after shutdown for " + 
+                      (projects != null ? projects.size() : 0) + " projects");
             return;
         }
         
         try {
             executorService.execute(() -> {
                 if (isShutdown.get()) {
-                    Log.w(TAG, "⚠️ Task rejected: executor shutdown during deleteAll");
+                    logUtils.w(TAG, "⚠️ Task rejected: executor shutdown during deleteAll");
                     return;
                 }
                 
                 try {
                     projectDao.deleteAll(projects);
-                    Log.d(TAG, "✅ Deleted " + projects.size() + " projects");
+                    logUtils.d(TAG, "✅ Deleted " + projects.size() + " projects");
                 } catch (Exception e) {
-                    Log.e(TAG, "❌ Error deleting projects", e);
+                    logUtils.e(TAG, "❌ Error deleting projects", e);
                 }
             });
-            Log.d(TAG, "📝 Submitting deleteAll task for " + (projects != null ? projects.size() : 0) + " projects");
+            logUtils.d(TAG, "📝 Submitting deleteAll task for " + (projects != null ? projects.size() : 0) + " projects");
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to submit deleteAll task - executor may be shutdown", e);
+            logUtils.e(TAG, "❌ Failed to submit deleteAll task - executor may be shutdown", e);
         }
     }
     
@@ -565,9 +567,9 @@ public class ProjectRepository {
      * 关闭资源（应用退出时调用）
      */
     public void shutdown() {
-        Log.i(TAG, "🛑 Shutting down repository executor...");
+        logUtils.i(TAG, "🛑 Shutting down repository executor...");
         isShutdown.set(true);
         executorService.shutdown();
-        Log.i(TAG, "✅ Repository executor shutdown complete");
+        logUtils.i(TAG, "✅ Repository executor shutdown complete");
     }
 }
