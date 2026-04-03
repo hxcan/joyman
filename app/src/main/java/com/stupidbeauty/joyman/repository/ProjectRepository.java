@@ -17,21 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Project 数据仓库
  * 
- * 统一管理 Project 数据的访问和操作
- * 作为 ViewModel 和 DAO 之间的中间层
- * 
- * 职责包括：
- * - 封装数据库操作（通过 ProjectDao）
- * - 提供高级业务逻辑方法
- * - 处理异步操作（使用 ExecutorService）
- * - 为未来添加网络同步、数据缓存预留接口
- * 
- * 设计模式：
- * - 单例模式：确保全局唯一实例
- * - 仓库模式：抽象数据源，统一访问接口
- * 
  * @author 太极美术工程狮狮长
- * @version 1.0.2
+ * @version 1.0.3
  * @since 2026-03-31
  */
 public class ProjectRepository {
@@ -570,6 +557,11 @@ public class ProjectRepository {
         logUtils.i(TAG, "🛑 Shutting down repository executor...");
         isShutdown.set(true);
         executorService.shutdown();
+        
+        // 🔧 CRITICAL FIX: Reset singleton instance so next getInstance() creates a fresh one
+        INSTANCE = null;
+        logUtils.i(TAG, "✅ Singleton instance reset - next getInstance() will create new repository");
+        
         logUtils.i(TAG, "✅ Repository executor shutdown complete");
     }
 }
