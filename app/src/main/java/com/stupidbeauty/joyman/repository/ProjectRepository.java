@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Project 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.3
+ * @version 1.0.4
  * @since 2026-03-31
  */
 public class ProjectRepository {
@@ -63,12 +63,21 @@ public class ProjectRepository {
      * @return ProjectRepository 实例
      */
     public static ProjectRepository getInstance(Application application) {
-        if (INSTANCE == null) {
+        // 🔧 CRITICAL FIX: Check both null and isShutdown to handle race condition
+        if (INSTANCE == null || INSTANCE.isShutdown.get()) {
             synchronized (ProjectRepository.class) {
-                if (INSTANCE == null) {
+                // Double-check with isShutdown flag
+                if (INSTANCE == null || INSTANCE.isShutdown.get()) {
+                    if (INSTANCE != null && INSTANCE.isShutdown.get()) {
+                        LogUtils.getInstance().i(TAG, "getInstance: Previous instance was shutdown, creating NEW instance");
+                    } else {
+                        LogUtils.getInstance().i(TAG, "getInstance: Created new instance");
+                    }
                     INSTANCE = new ProjectRepository(application);
                 }
             }
+        } else {
+            LogUtils.getInstance().i(TAG, "getInstance: Returning existing instance");
         }
         return INSTANCE;
     }
