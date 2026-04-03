@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.3
+ * @version 2.0.4
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -48,11 +48,11 @@ public class TaskRepository {
             synchronized (TaskRepository.class) {
                 if (INSTANCE == null) {
                     INSTANCE = new TaskRepository(application);
-                    logUtils.i(TAG, "getInstance: Created new instance");
+                    LogUtils.getInstance().i(TAG, "getInstance: Created new instance");
                 }
             }
         } else {
-            logUtils.i(TAG, "getInstance: Returning existing instance");
+            LogUtils.getInstance().i(TAG, "getInstance: Returning existing instance");
         }
         return INSTANCE;
     }
