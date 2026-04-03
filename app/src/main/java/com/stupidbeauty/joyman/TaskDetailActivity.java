@@ -1,8 +1,12 @@
 package com.stupidbeauty.joyman;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.widget.ArrayAdapter;
+import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,7 +32,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.6
+ * @version 1.0.7
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -47,6 +51,7 @@ public class TaskDetailActivity extends AppCompatActivity {
     private TextView textPriority;
     private TextView textProject;
     private TextView textCreatedAt;
+    private ImageButton btnCopyTitle;
     private Spinner spinnerProject;
     
     private List<Project> projectList;
@@ -98,13 +103,56 @@ public class TaskDetailActivity extends AppCompatActivity {
         textPriority = findViewById(R.id.text_detail_priority);
         textProject = findViewById(R.id.text_detail_project);
         textCreatedAt = findViewById(R.id.text_detail_created_at);
+        btnCopyTitle = findViewById(R.id.btn_copy_title);
         spinnerProject = findViewById(R.id.spinner_detail_project);
+        
+        // 设置复制按钮点击事件
+        btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
         
         findViewById(R.id.btn_toggle_status).setOnClickListener(v -> toggleStatus());
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
         findViewById(R.id.btn_save_project).setOnClickListener(v -> saveProjectSelection());
         LogUtils.getInstance().d(TAG, "initViews: Views initialized and listeners set");
+    }
+    
+    /**
+     * 复制任务标题到剪贴板
+     */
+    private void copyTitleToClipboard() {
+        if (task == null) {
+            LogUtils.getInstance().w(TAG, "copyTitleToClipboard: Task is null");
+            Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String title = task.getTitle();
+        if (title == null || title.isEmpty()) {
+            LogUtils.getInstance().w(TAG, "copyTitleToClipboard: Task title is empty");
+            Toast.makeText(this, "任务标题为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 获取系统剪贴板服务
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            LogUtils.getInstance().e(TAG, "copyTitleToClipboard: ClipboardManager is null");
+            Toast.makeText(this, "无法访问剪贴板", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 创建剪贴板数据
+        ClipData clip = ClipData.newPlainText("JoyMan 任务标题", title);
+        clipboard.setPrimaryClip(clip);
+        
+        LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Title copied successfully: " + title);
+        
+        // 显示提示
+        String toastMessage = "已复制：" + title;
+        if (toastMessage.length() > 50) {
+            toastMessage = toastMessage.substring(0, 47) + "...";
+        }
+        Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show();
     }
     
     private void loadTask() {
