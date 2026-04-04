@@ -24,7 +24,7 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
  * - 实体类：Task, Project
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.0
+ * @version 3.0.1
  * @since 2026-03-31
  */
 @Database(
@@ -103,14 +103,18 @@ public abstract class AppDatabase extends RoomDatabase {
      * 数据库迁移：版本 2 → 版本 3
      * 
      * 变更内容：
-     * - Task 实体类状态常量扩展（STATUS_NEW, STATUS_IN_PROGRESS, STATUS_RESOLVED, STATUS_FEEDBACK, STATUS_CLOSED）
-     * - 无实际数据库 schema 变更，仅更新版本号以匹配新的 identity hash
+     * - Task 实体类状态常量扩展（STATUS_NEW=1, STATUS_IN_PROGRESS=2, STATUS_RESOLVED=3, STATUS_FEEDBACK=4, STATUS_CLOSED=5）
+     * - 更新现有任务的状态值：0 (STATUS_TODO) → 1 (STATUS_NEW)
+     * - 修复 Room schema 验证失败问题
      */
     static final Migration MIGRATION_2_3 = new Migration(2, 3) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
-            // 无需实际迁移操作，Task 实体类的 Java 常量变更不影响数据库 schema
-            android.util.Log.d("AppDatabase", "Migrated from version 2 to version 3: Updated status constants");
+            // 将旧版本 status=0 (STATUS_TODO) 更新为 status=1 (STATUS_NEW)
+            // 确保现有任务数据在升级后保持正确的状态映射
+            database.execSQL("UPDATE tasks SET status = 1 WHERE status = 0");
+            
+            android.util.Log.d("AppDatabase", "Migrated from version 2 to version 3: Updated status constants and migrated existing tasks");
         }
     };
     
