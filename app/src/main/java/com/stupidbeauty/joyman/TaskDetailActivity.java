@@ -36,7 +36,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.8
+ * @version 1.0.9
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -61,6 +61,7 @@ public class TaskDetailActivity extends AppCompatActivity {
     
     private List<Project> projectList;
     private Long pendingProjectId;
+    private Integer pendingStatusId;  // 暂存待保存的状态 ID
     
     // 状态列表数据
     private int[] statusIds;
@@ -151,20 +152,18 @@ public class TaskDetailActivity extends AppCompatActivity {
         statusAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerStatus.setAdapter(statusAdapter);
         
-        // 状态变更监听 - 即时保存
+        // 状态变更监听 - 仅暂存，不保存
         spinnerStatus.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (task != null) {
-                    int newStatusId = statusIds[position];
-                    if (newStatusId != task.getStatus()) {
-                        LogUtils.getInstance().i(TAG, "onItemSelected: Status changed from " + task.getStatus() + " to " + newStatusId);
-                        task.setStatus(newStatusId);
-                        taskViewModel.update(task);
-                        updateStatusUI();
-                        
-                        String toastMessage = "状态已更改为：" + statusNames[position];
-                        Toast.makeText(TaskDetailActivity.this, toastMessage, Toast.LENGTH_SHORT).show();
+                    int selectedStatusId = statusIds[position];
+                    if (selectedStatusId != task.getStatus()) {
+                        // 仅暂存，等待用户点击保存按钮
+                        pendingStatusId = selectedStatusId;
+                        LogUtils.getInstance().d(TAG, "onItemSelected: Status selection changed to " + selectedStatusId + " (pending save)");
+                    } else {
+                        pendingStatusId = null;
                     }
                 }
             }
@@ -178,6 +177,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
         findViewById(R.id.btn_save_project).setOnClickListener(v -> saveProjectSelection());
+        findViewById(R.id.btn_save_status).setOnClickListener(v -> saveStatusSelection());
         
         LogUtils.getInstance().d(TAG, "initViews: Views initialized and listeners set");
     }
@@ -233,6 +233,7 @@ public class TaskDetailActivity extends AppCompatActivity {
             }
             
             this.task = task;
+            pendingStatusId = null;  // 重置待保存状态
             LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus());
             updateUI();
         });
@@ -278,10 +279,41 @@ public class TaskDetailActivity extends AppCompatActivity {
             spinnerProject.setAdapter(adapter);
             LogUtils.getInstance().d(TAG, "loadProjects: Adapter created and set");
             
-            // 注意：不在这里设置选择位置，等 updateUI() 中统一设置
-            LogUtils.getInstance().d(TAG, "loadProjects: Listener set up");
             LogUtils.getInstance().d(TAG, "loadProjects: END");
         });
+    }
+    
+    /**
+     * 保存状态更改
+     */
+    private void saveStatusSelection() {
+        LogUtils.getInstance().d(TAG, "=================================================================");
+        LogUtils.getInstance().d(TAG, "saveStatusSelection: START");
+        
+        if (task == null) {
+            LogUtils.getInstance().w(TAG, "saveStatusSelection: Task is null");
+            Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        if (pendingStatusId == null) {
+            LogUtils.getInstance().d(TAG, "saveStatusSelection: No status change detected");
+            Toast.makeText(this, "状态未变更", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        LogUtils.getInstance().i(TAG, "saveStatusSelection: Saving status: " + pendingStatusId);
+        task.setStatus(pendingStatusId);
+        taskViewModel.update(task);
+        
+        String statusName = Task.getStatusNameById(pendingStatusId);
+        Toast.makeText(this, "状态已保存为：" + statusName, Toast.LENGTH_SHORT).show();
+        
+        updateStatusUI();
+        pendingStatusId = null;
+        
+        LogUtils.getInstance().d(TAG, "saveStatusSelection: END");
+        LogUtils.getInstance().d(TAG, "=================================================================");
     }
     
     private void saveProjectSelection() {
