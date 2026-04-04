@@ -4,7 +4,8 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.ColumnInfo;
 import androidx.room.Index;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Task 任务实体类
@@ -13,7 +14,7 @@ import java.util.Date;
  * 用于存储单个任务的完整信息
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.1
+ * @version 2.0.3
  * @since 2026-03-31
  */
 @Entity(
@@ -25,12 +26,28 @@ import java.util.Date;
 public class Task {
     
     /**
-     * 任务状态常量
+     * JoyMan 默认任务状态集合（固定值，与 Redmine 典型默认状态一致）
+     * 
+     * 说明：
+     * - ID 为固定连续值，不随实例变化
+     * - 新创建的 JoyMan 项目将使用此默认状态集合
+     * - 后续版本可支持自定义状态，但默认值保持不变
+     * 
+     * 参考：Redmine 初次安装时的默认状态
      */
-    public static final int STATUS_TODO = 0;
-    public static final int STATUS_IN_PROGRESS = 1;
-    public static final int STATUS_DONE = 2;
-    public static final int STATUS_CANCELLED = 3;
+    public static final int STATUS_NEW = 1;          // 新建
+    public static final int STATUS_IN_PROGRESS = 2;  // 进行中
+    public static final int STATUS_RESOLVED = 3;     // 已解决
+    public static final int STATUS_FEEDBACK = 4;     // 反馈中
+    public static final int STATUS_CLOSED = 5;       // 已关闭
+    
+    /**
+     * 向后兼容的别名（旧代码可继续使用）
+     */
+    @Deprecated
+    public static final int STATUS_TODO = STATUS_NEW;
+    @Deprecated
+    public static final int STATUS_DONE = STATUS_CLOSED;
     
     /**
      * 优先级常量
@@ -60,9 +77,10 @@ public class Task {
     private String description;
     
     /**
-     * 任务状态（默认：待办）
+     * 任务状态（默认：新建）
+     * 取值范围：1-5（JoyMan 默认状态集合）
      */
-    @ColumnInfo(name = "status", defaultValue = "0")
+    @ColumnInfo(name = "status", defaultValue = "1")
     private int status;
     
     /**
@@ -109,7 +127,7 @@ public class Task {
     public Task(long id, String title) {
         this.id = id;
         this.title = title;
-        this.status = STATUS_TODO;
+        this.status = STATUS_NEW;  // 默认状态：新建
         this.priority = PRIORITY_NORMAL;
         this.createdAt = System.currentTimeMillis();
         this.updatedAt = this.createdAt;
@@ -183,22 +201,81 @@ public class Task {
     
     // ==================== 辅助方法 ====================
     
-    public boolean isDone() { return status == STATUS_DONE; }
-    public boolean isCancelled() { return status == STATUS_CANCELLED; }
+    public boolean isDone() { return status == STATUS_CLOSED || status == STATUS_RESOLVED; }
+    public boolean isCancelled() { return status == STATUS_CLOSED; }
     public boolean hasDueDate() { return dueDate != null; }
     public boolean isOverdue() {
         if (dueDate == null) return false;
         return !isDone() && !isCancelled() && System.currentTimeMillis() > dueDate;
     }
     
+    /**
+     * 获取状态的中文显示文本
+     */
     public String getStatusText() {
         switch (status) {
-            case STATUS_TODO: return "待办";
+            case STATUS_NEW: return "新建";
             case STATUS_IN_PROGRESS: return "进行中";
-            case STATUS_DONE: return "已完成";
-            case STATUS_CANCELLED: return "已取消";
-            default: return "未知";
+            case STATUS_RESOLVED: return "已解决";
+            case STATUS_FEEDBACK: return "反馈中";
+            case STATUS_CLOSED: return "已关闭";
+            default: return "未知 (" + status + ")";
         }
+    }
+    
+    /**
+     * 根据状态 ID 获取状态名称（静态方法，便于 UI 使用）
+     * @param statusId 状态 ID（JoyMan 默认：1-5）
+     * @return 状态中文名称
+     */
+    public static String getStatusNameById(int statusId) {
+        switch (statusId) {
+            case STATUS_NEW: return "新建";
+            case STATUS_IN_PROGRESS: return "进行中";
+            case STATUS_RESOLVED: return "已解决";
+            case STATUS_FEEDBACK: return "反馈中";
+            case STATUS_CLOSED: return "已关闭";
+            default: return "未知 (" + statusId + ")";
+        }
+    }
+    
+    /**
+     * 获取状态的 CSS 类名（用于 UI 样式）
+     */
+    public String getStatusClass() {
+        switch (status) {
+            case STATUS_NEW: return "status-new";
+            case STATUS_IN_PROGRESS: return "status-in-progress";
+            case STATUS_RESOLVED: return "status-resolved";
+            case STATUS_FEEDBACK: return "status-feedback";
+            case STATUS_CLOSED: return "status-closed";
+            default: return "status-unknown";
+        }
+    }
+    
+    /**
+     * 获取 JoyMan 默认状态列表
+     * @return 状态 ID 数组 [1, 2, 3, 4, 5]
+     */
+    public static int[] getDefaultStatusIds() {
+        return new int[]{STATUS_NEW, STATUS_IN_PROGRESS, STATUS_RESOLVED, STATUS_FEEDBACK, STATUS_CLOSED};
+    }
+    
+    /**
+     * 获取状态 ID 对应的中文名称列表
+     * @return 状态名称数组 ["新建", "进行中", "已解决", "反馈中", "已关闭"]
+     */
+    public static String[] getDefaultStatusNames() {
+        return new String[]{"新建", "进行中", "已解决", "反馈中", "已关闭"};
+    }
+    
+    /**
+     * 验证状态 ID 是否为有效的默认状态
+     * @param statusId 待验证的状态 ID
+     * @return true 如果是有效的默认状态
+     */
+    public static boolean isValidDefaultStatus(int statusId) {
+        return statusId >= STATUS_NEW && statusId <= STATUS_CLOSED;
     }
     
     public String getPriorityText() {
