@@ -3,7 +3,6 @@ package com.stupidbeauty.joyman;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
@@ -36,7 +35,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.9
+ * @version 1.0.10
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -58,10 +57,11 @@ public class TaskDetailActivity extends AppCompatActivity {
     private ImageButton btnCopyTitle;
     private Spinner spinnerProject;
     private Spinner spinnerStatus;
+    private View btnSaveChanges;
     
     private List<Project> projectList;
-    private Long pendingProjectId;
-    private Integer pendingStatusId;  // 暂存待保存的状态 ID
+    private Long pendingProjectId;   // 暂存待保存的项目 ID
+    private Integer pendingStatusId; // 暂存待保存的状态 ID
     
     // 状态列表数据
     private int[] statusIds;
@@ -139,6 +139,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnCopyTitle = findViewById(R.id.btn_copy_title);
         spinnerProject = findViewById(R.id.spinner_detail_project);
         spinnerStatus = findViewById(R.id.spinner_status);
+        btnSaveChanges = findViewById(R.id.btn_save_changes);
         
         // 设置复制按钮点击事件
         btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
@@ -159,11 +160,41 @@ public class TaskDetailActivity extends AppCompatActivity {
                 if (task != null) {
                     int selectedStatusId = statusIds[position];
                     if (selectedStatusId != task.getStatus()) {
-                        // 仅暂存，等待用户点击保存按钮
                         pendingStatusId = selectedStatusId;
-                        LogUtils.getInstance().d(TAG, "onItemSelected: Status selection changed to " + selectedStatusId + " (pending save)");
+                        LogUtils.getInstance().d(TAG, "onItemSelected: Status changed to " + selectedStatusId + " (pending save)");
                     } else {
                         pendingStatusId = null;
+                    }
+                    updateSaveButtonState();
+                }
+            }
+            
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Do nothing
+            }
+        });
+        
+        // 项目变更监听 - 仅暂存，不保存
+        spinnerProject.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (projectList != null && position < projectList.size()) {
+                    Project selectedProject = projectList.get(position);
+                    Long selectedProjectId = (selectedProject == null) ? null : selectedProject.getId();
+                    
+                    if (task != null) {
+                        Long currentProjectId = task.getProjectId();
+                        boolean isNullBoth = (currentProjectId == null && selectedProjectId == null);
+                        boolean isSameValue = (currentProjectId != null && selectedProjectId != null && currentProjectId.equals(selectedProjectId));
+                        
+                        if (isNullBoth || isSameValue) {
+                            pendingProjectId = null;
+                        } else {
+                            pendingProjectId = selectedProjectId;
+                            LogUtils.getInstance().d(TAG, "onItemSelected: Project changed to " + selectedProjectId + " (pending save)");
+                        }
+                        updateSaveButtonState();
                     }
                 }
             }
@@ -174,12 +205,39 @@ public class TaskDetailActivity extends AppCompatActivity {
             }
         });
         
+        // 统一保存按钮
+        btnSaveChanges.setOnClickListener(v -> saveAllChanges());
+        
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
-        findViewById(R.id.btn_save_project).setOnClickListener(v -> saveProjectSelection());
-        findViewById(R.id.btn_save_status).setOnClickListener(v -> saveStatusSelection());
         
         LogUtils.getInstance().d(TAG, "initViews: Views initialized and listeners set");
+    }
+    
+    /**
+     * 更新保存按钮的可用状态
+     */
+    private void updateSaveButtonState() {
+        boolean hasChanges = (pendingStatusId != null || pendingProjectId != null);
+        btnSaveChanges.setEnabled(hasChanges);
+        btnSaveChanges.setAlpha(hasChanges ? 1.0f : 0.5f);
+        
+        if (hasChanges) {
+            StringBuilder hint = new StringBuilder("保存更改：");
+            List<String> changes = new ArrayList<>();
+            if (pendingStatusId != null) {
+                changes.add("状态");
+            }
+            if (pendingProjectId != null) {
+                changes.add("项目");
+            }
+            hint.append(String.join("、", changes));
+            ((TextView) btnSaveChanges).setText(hint.toString());
+        } else {
+            ((TextView) btnSaveChanges).setText("保存更改");
+        }
+        
+        LogUtils.getInstance().d(TAG, "updateSaveButtonState: enabled=" + hasChanges);
     }
     
     /**
@@ -199,7 +257,6 @@ public class TaskDetailActivity extends AppCompatActivity {
             return;
         }
         
-        // 获取系统剪贴板服务
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) {
             LogUtils.getInstance().e(TAG, "copyTitleToClipboard: ClipboardManager is null");
@@ -207,13 +264,11 @@ public class TaskDetailActivity extends AppCompatActivity {
             return;
         }
         
-        // 创建剪贴板数据
         ClipData clip = ClipData.newPlainText("JoyMan 任务标题", title);
         clipboard.setPrimaryClip(clip);
         
         LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Title copied successfully: " + title);
         
-        // 显示提示
         String toastMessage = "已复制：" + title;
         if (toastMessage.length() > 50) {
             toastMessage = toastMessage.substring(0, 47) + "...";
@@ -233,20 +288,19 @@ public class TaskDetailActivity extends AppCompatActivity {
             }
             
             this.task = task;
-            pendingStatusId = null;  // 重置待保存状态
+            pendingStatusId = null;
+            pendingProjectId = null;
             LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus());
             updateUI();
+            updateSaveButtonState();
         });
     }
     
     private void loadProjects() {
         LogUtils.getInstance().d(TAG, "loadProjects: START - Loading projects for spinner");
-        LogUtils.getInstance().d(TAG, "loadProjects: Activity is destroyed: " + isDestroyed());
-        LogUtils.getInstance().d(TAG, "loadProjects: Activity is finishing: " + isFinishing());
         
         projectViewModel.getAllProjects().observe(this, projects -> {
             LogUtils.getInstance().d(TAG, "loadProjects: Observer triggered, projects is null: " + (projects == null));
-            LogUtils.getInstance().d(TAG, "loadProjects: Activity is destroyed: " + isDestroyed());
             
             if (isDestroyed()) {
                 LogUtils.getInstance().w(TAG, "loadProjects: Activity already destroyed, skipping update");
@@ -258,7 +312,6 @@ public class TaskDetailActivity extends AppCompatActivity {
             
             projectList.add(null);
             projectNames.add("无项目");
-            LogUtils.getInstance().d(TAG, "loadProjects: Added 'no project' option");
             
             if (projects != null) {
                 for (Project project : projects) {
@@ -266,8 +319,6 @@ public class TaskDetailActivity extends AppCompatActivity {
                     projectNames.add(project.getIconDisplay() + " " + project.getName());
                 }
                 LogUtils.getInstance().d(TAG, "loadProjects: Added " + projects.size() + " projects");
-            } else {
-                LogUtils.getInstance().w(TAG, "loadProjects: Projects list is null");
             }
             
             ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -277,80 +328,41 @@ public class TaskDetailActivity extends AppCompatActivity {
             );
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             spinnerProject.setAdapter(adapter);
-            LogUtils.getInstance().d(TAG, "loadProjects: Adapter created and set");
             
             LogUtils.getInstance().d(TAG, "loadProjects: END");
         });
     }
     
     /**
-     * 保存状态更改
+     * 保存所有待处理的变更（状态 + 项目）
      */
-    private void saveStatusSelection() {
+    private void saveAllChanges() {
         LogUtils.getInstance().d(TAG, "=================================================================");
-        LogUtils.getInstance().d(TAG, "saveStatusSelection: START");
+        LogUtils.getInstance().d(TAG, "saveAllChanges: START");
         
         if (task == null) {
-            LogUtils.getInstance().w(TAG, "saveStatusSelection: Task is null");
+            LogUtils.getInstance().w(TAG, "saveAllChanges: Task is null");
             Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        if (pendingStatusId == null) {
-            LogUtils.getInstance().d(TAG, "saveStatusSelection: No status change detected");
-            Toast.makeText(this, "状态未变更", Toast.LENGTH_SHORT).show();
-            return;
+        boolean hasChanges = false;
+        List<String> savedItems = new ArrayList<>();
+        
+        // 保存状态变更
+        if (pendingStatusId != null) {
+            LogUtils.getInstance().i(TAG, "saveAllChanges: Saving status: " + pendingStatusId);
+            task.setStatus(pendingStatusId);
+            String statusName = Task.getStatusNameById(pendingStatusId);
+            savedItems.add("状态：" + statusName);
+            pendingStatusId = null;
+            hasChanges = true;
         }
         
-        LogUtils.getInstance().i(TAG, "saveStatusSelection: Saving status: " + pendingStatusId);
-        task.setStatus(pendingStatusId);
-        taskViewModel.update(task);
-        
-        String statusName = Task.getStatusNameById(pendingStatusId);
-        Toast.makeText(this, "状态已保存为：" + statusName, Toast.LENGTH_SHORT).show();
-        
-        updateStatusUI();
-        pendingStatusId = null;
-        
-        LogUtils.getInstance().d(TAG, "saveStatusSelection: END");
-        LogUtils.getInstance().d(TAG, "=================================================================");
-    }
-    
-    private void saveProjectSelection() {
-        LogUtils.getInstance().d(TAG, "=================================================================");
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: START");
-        
-        if (task == null) {
-            LogUtils.getInstance().w(TAG, "saveProjectSelection: Task is null");
-            Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        Long currentProjectId = task.getProjectId();
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: currentProjectId = " + (currentProjectId == null ? "null" : currentProjectId));
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: pendingProjectId = " + (pendingProjectId == null ? "null" : pendingProjectId));
-        
-        boolean isNullBoth = (currentProjectId == null && pendingProjectId == null);
-        boolean isSameValue = (currentProjectId != null && pendingProjectId != null && currentProjectId.equals(pendingProjectId));
-        
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: isNullBoth = " + isNullBoth);
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: isSameValue = " + isSameValue);
-        
-        if (isNullBoth || isSameValue) {
-            LogUtils.getInstance().d(TAG, "saveProjectSelection: No change detected");
-            Toast.makeText(this, "项目未变更", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        if (pendingProjectId == null) {
-            LogUtils.getInstance().i(TAG, "saveProjectSelection: Removing project association");
-            task.setProjectId(null);
-            taskViewModel.update(task);
-            Toast.makeText(this, "已移除项目关联", Toast.LENGTH_SHORT).show();
-        } else {
-            LogUtils.getInstance().i(TAG, "saveProjectSelection: Saving project: " + pendingProjectId);
+        // 保存项目变更
+        if (pendingProjectId != null) {
+            LogUtils.getInstance().i(TAG, "saveAllChanges: Saving project: " + pendingProjectId);
             task.setProjectId(pendingProjectId);
-            taskViewModel.update(task);
             
             String projectName = "未知";
             if (projectList != null) {
@@ -361,12 +373,27 @@ public class TaskDetailActivity extends AppCompatActivity {
                     }
                 }
             }
-            Toast.makeText(this, "已保存到：📁 " + projectName, Toast.LENGTH_SHORT).show();
+            savedItems.add("项目：" + projectName);
+            pendingProjectId = null;
+            hasChanges = true;
         }
         
+        if (!hasChanges) {
+            LogUtils.getInstance().d(TAG, "saveAllChanges: No changes detected");
+            Toast.makeText(this, "没有需要保存的更改", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 执行保存
+        taskViewModel.update(task);
+        
+        String message = "已保存：" + String.join("、", savedItems);
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        
         updateUI();
-        pendingProjectId = null;
-        LogUtils.getInstance().d(TAG, "saveProjectSelection: END");
+        updateSaveButtonState();
+        
+        LogUtils.getInstance().d(TAG, "saveAllChanges: END - Saved: " + String.join(", ", savedItems));
         LogUtils.getInstance().d(TAG, "=================================================================");
     }
     
@@ -386,35 +413,23 @@ public class TaskDetailActivity extends AppCompatActivity {
             textDescription.setVisibility(View.GONE);
         }
         
-        // 更新状态显示（带颜色）
         updateStatusUI();
-        
         textPriority.setText("优先级：" + task.getPriorityText());
         
         Long projectId = task.getProjectId();
-        LogUtils.getInstance().i(TAG, "updateUI: Task project ID: " + (projectId == null ? "null" : projectId));
-        
         if (projectId != null) {
-            LogUtils.getInstance().i(TAG, "updateUI: Observing projects to find project ID: " + projectId);
             projectViewModel.getAllProjects().observe(this, projects -> {
-                LogUtils.getInstance().i(TAG, "updateUI: Projects observer triggered, projects count: " + (projects == null ? "null" : projects.size()));
-                
                 boolean found = false;
                 if (projects != null) {
                     for (Project p : projects) {
-                        LogUtils.getInstance().d(TAG, "updateUI: Checking project: " + p.getId() + " - " + p.getName());
                         if (p.getId() == projectId) {
-                            String projectDisplay = "所属项目：" + p.getIconDisplay() + " " + p.getName();
-                            textProject.setText(projectDisplay);
-                            LogUtils.getInstance().i(TAG, "updateUI: Project found! Display: " + projectDisplay);
+                            textProject.setText("所属项目：" + p.getIconDisplay() + " " + p.getName());
                             found = true;
                             
-                            // 同时更新 Spinner 的选择位置
                             if (projectList != null) {
                                 for (int i = 0; i < projectList.size(); i++) {
                                     Project sp = projectList.get(i);
                                     if (sp != null && sp.getId() == projectId) {
-                                        LogUtils.getInstance().d(TAG, "updateUI: Setting spinner selection to index: " + i);
                                         spinnerProject.setSelection(i);
                                         break;
                                     }
@@ -426,15 +441,12 @@ public class TaskDetailActivity extends AppCompatActivity {
                 }
                 
                 if (!found) {
-                    LogUtils.getInstance().w(TAG, "updateUI: Project not found! ID: " + projectId);
                     textProject.setText("所属项目：未知项目 (ID: " + projectId + ")");
                 }
             });
         } else {
-            LogUtils.getInstance().i(TAG, "updateUI: Task has no project");
             textProject.setText("所属项目：无");
             if (projectList != null) {
-                LogUtils.getInstance().d(TAG, "updateUI: Setting spinner selection to index: 0 (no project)");
                 spinnerProject.setSelection(0);
             }
         }
@@ -442,35 +454,25 @@ public class TaskDetailActivity extends AppCompatActivity {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
         textCreatedAt.setText("创建时间：" + sdf.format(new Date(task.getCreatedAt())));
         
-        // 更新状态下拉框的选择位置
         updateStatusSpinnerSelection();
         
         LogUtils.getInstance().d(TAG, "updateUI: END - UI updated");
     }
     
-    /**
-     * 更新状态文本显示（带颜色）
-     */
     private void updateStatusUI() {
         if (task == null) return;
         
         String statusText = task.getStatusText();
         textStatus.setText(statusText);
         
-        // 设置状态颜色
         int colorIndex = task.getStatus() - Task.STATUS_NEW;
         if (colorIndex >= 0 && colorIndex < statusColors.length) {
             textStatus.setTextColor(statusColors[colorIndex]);
         } else {
             textStatus.setTextColor(ContextCompat.getColor(this, R.color.text_primary));
         }
-        
-        LogUtils.getInstance().d(TAG, "updateStatusUI: Status text updated: " + statusText + ", color index: " + colorIndex);
     }
     
-    /**
-     * 更新状态下拉框的选择位置
-     */
     private void updateStatusSpinnerSelection() {
         if (task == null) return;
         
@@ -478,7 +480,6 @@ public class TaskDetailActivity extends AppCompatActivity {
         for (int i = 0; i < statusIds.length; i++) {
             if (statusIds[i] == currentStatusId) {
                 spinnerStatus.setSelection(i);
-                LogUtils.getInstance().d(TAG, "updateStatusSpinnerSelection: Set to index " + i + " for status " + currentStatusId);
                 break;
             }
         }
@@ -487,7 +488,6 @@ public class TaskDetailActivity extends AppCompatActivity {
     private void showMoveProjectDialog() {
         LogUtils.getInstance().d(TAG, "showMoveProjectDialog: Showing dialog");
         if (projectList == null) {
-            LogUtils.getInstance().w(TAG, "showMoveProjectDialog: Project list not loaded yet");
             Toast.makeText(this, "项目列表加载中...", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -512,37 +512,35 @@ public class TaskDetailActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
             .setTitle("移动到项目")
             .setSingleChoiceItems(projectNames, currentIndex, (dialog, which) -> {
-                LogUtils.getInstance().d(TAG, "showMoveProjectDialog: Dialog item clicked, position: " + which);
                 Project selectedProject = projectList.get(which);
-                if (selectedProject == null) {
-                    task.setProjectId(null);
-                } else {
-                    task.setProjectId(selectedProject.getId());
-                }
-                taskViewModel.update(task);
+                Long selectedProjectId = (selectedProject == null) ? null : selectedProject.getId();
                 
-                String projectName = (selectedProject == null) ? "无项目" : selectedProject.getName();
-                Toast.makeText(this, "已移动到：" + projectName, Toast.LENGTH_SHORT).show();
+                if (task != null) {
+                    Long currentProjectId = task.getProjectId();
+                    boolean isNullBoth = (currentProjectId == null && selectedProjectId == null);
+                    boolean isSameValue = (currentProjectId != null && selectedProjectId != null && currentProjectId.equals(selectedProjectId));
+                    
+                    if (isNullBoth || isSameValue) {
+                        pendingProjectId = null;
+                    } else {
+                        pendingProjectId = selectedProjectId;
+                    }
+                    updateSaveButtonState();
+                }
                 
                 dialog.dismiss();
-                updateUI();
             })
             .setNegativeButton("取消", null)
             .show();
     }
     
     private void showDeleteConfirm() {
-        LogUtils.getInstance().d(TAG, "showDeleteConfirm: Showing delete confirmation");
-        if (task == null) {
-            LogUtils.getInstance().w(TAG, "showDeleteConfirm: Task is null");
-            return;
-        }
+        if (task == null) return;
         
         new AlertDialog.Builder(this)
             .setTitle("删除任务")
             .setMessage("确定要删除任务 \"" + task.getTitle() + "\" 吗？")
             .setPositiveButton("删除", (dialog, which) -> {
-                LogUtils.getInstance().i(TAG, "showDeleteConfirm: User confirmed deletion");
                 taskViewModel.deleteById(taskId);
                 Toast.makeText(this, "任务已删除", Toast.LENGTH_SHORT).show();
                 finish();
@@ -554,7 +552,6 @@ public class TaskDetailActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
-            LogUtils.getInstance().d(TAG, "onOptionsItemSelected: Home button clicked, finishing activity");
             finish();
             return true;
         }
@@ -563,12 +560,8 @@ public class TaskDetailActivity extends AppCompatActivity {
     
     @Override
     protected void onDestroy() {
-        LogUtils.getInstance().d(TAG, "=================================================================");
-        LogUtils.getInstance().d(TAG, "onDestroy: START - Activity being destroyed");
-        LogUtils.getInstance().d(TAG, "onDestroy: Activity hash code: " + this.hashCode());
-        LogUtils.getInstance().d(TAG, "onDestroy: Task ID: " + taskId);
+        LogUtils.getInstance().d(TAG, "onDestroy: START");
         super.onDestroy();
         LogUtils.getInstance().d(TAG, "onDestroy: END");
-        LogUtils.getInstance().d(TAG, "=================================================================");
     }
 }
