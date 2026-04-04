@@ -3,8 +3,11 @@ package com.stupidbeauty.joyman;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ImageButton;
 import android.widget.Spinner;
@@ -13,6 +16,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.stupidbeauty.joyman.data.database.entity.Project;
@@ -32,7 +36,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.7
+ * @version 1.0.8
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -53,9 +57,15 @@ public class TaskDetailActivity extends AppCompatActivity {
     private TextView textCreatedAt;
     private ImageButton btnCopyTitle;
     private Spinner spinnerProject;
+    private Spinner spinnerStatus;
     
     private List<Project> projectList;
     private Long pendingProjectId;
+    
+    // 状态列表数据
+    private int[] statusIds;
+    private String[] statusNames;
+    private int[] statusColors;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,12 +97,34 @@ public class TaskDetailActivity extends AppCompatActivity {
         LogUtils.getInstance().d(TAG, "onCreate: TaskViewModel hash code: " + taskViewModel.hashCode());
         LogUtils.getInstance().d(TAG, "onCreate: ProjectViewModel hash code: " + projectViewModel.hashCode());
         
+        // 初始化状态数据
+        initStatusData();
+        
         initViews();
         loadTask();
         loadProjects();
         
         LogUtils.getInstance().d(TAG, "onCreate: END");
         LogUtils.getInstance().d(TAG, "=================================================================");
+    }
+    
+    /**
+     * 初始化状态数据（ID、名称、颜色）
+     */
+    private void initStatusData() {
+        LogUtils.getInstance().d(TAG, "initStatusData: Initializing status data");
+        
+        statusIds = Task.getDefaultStatusIds();
+        statusNames = Task.getDefaultStatusNames();
+        statusColors = new int[]{
+            ContextCompat.getColor(this, R.color.status_new),
+            ContextCompat.getColor(this, R.color.status_in_progress),
+            ContextCompat.getColor(this, R.color.status_resolved),
+            ContextCompat.getColor(this, R.color.status_feedback),
+            ContextCompat.getColor(this, R.color.status_closed)
+        };
+        
+        LogUtils.getInstance().d(TAG, "initStatusData: Status data initialized, count: " + statusIds.length);
     }
     
     private void initViews() {
@@ -105,14 +137,48 @@ public class TaskDetailActivity extends AppCompatActivity {
         textCreatedAt = findViewById(R.id.text_detail_created_at);
         btnCopyTitle = findViewById(R.id.btn_copy_title);
         spinnerProject = findViewById(R.id.spinner_detail_project);
+        spinnerStatus = findViewById(R.id.spinner_status);
         
         // 设置复制按钮点击事件
         btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
         
-        findViewById(R.id.btn_toggle_status).setOnClickListener(v -> toggleStatus());
+        // 初始化状态下拉框
+        ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_spinner_item,
+            statusNames
+        );
+        statusAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerStatus.setAdapter(statusAdapter);
+        
+        // 状态变更监听 - 即时保存
+        spinnerStatus.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (task != null) {
+                    int newStatusId = statusIds[position];
+                    if (newStatusId != task.getStatus()) {
+                        LogUtils.getInstance().i(TAG, "onItemSelected: Status changed from " + task.getStatus() + " to " + newStatusId);
+                        task.setStatus(newStatusId);
+                        taskViewModel.update(task);
+                        updateStatusUI();
+                        
+                        String toastMessage = "状态已更改为：" + statusNames[position];
+                        Toast.makeText(TaskDetailActivity.this, toastMessage, Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+            
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Do nothing
+            }
+        });
+        
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
         findViewById(R.id.btn_save_project).setOnClickListener(v -> saveProjectSelection());
+        
         LogUtils.getInstance().d(TAG, "initViews: Views initialized and listeners set");
     }
     
@@ -167,7 +233,7 @@ public class TaskDetailActivity extends AppCompatActivity {
             }
             
             this.task = task;
-            LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId());
+            LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus());
             updateUI();
         });
     }
@@ -283,12 +349,14 @@ public class TaskDetailActivity extends AppCompatActivity {
         
         if (task.getDescription() != null && !task.getDescription().isEmpty()) {
             textDescription.setText(task.getDescription());
-            textDescription.setVisibility(android.view.View.VISIBLE);
+            textDescription.setVisibility(View.VISIBLE);
         } else {
-            textDescription.setVisibility(android.view.View.GONE);
+            textDescription.setVisibility(View.GONE);
         }
         
-        textStatus.setText("状态：" + task.getStatusText());
+        // 更新状态显示（带颜色）
+        updateStatusUI();
+        
         textPriority.setText("优先级：" + task.getPriorityText());
         
         Long projectId = task.getProjectId();
@@ -342,22 +410,45 @@ public class TaskDetailActivity extends AppCompatActivity {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
         textCreatedAt.setText("创建时间：" + sdf.format(new Date(task.getCreatedAt())));
         
+        // 更新状态下拉框的选择位置
+        updateStatusSpinnerSelection();
+        
         LogUtils.getInstance().d(TAG, "updateUI: END - UI updated");
     }
     
-    private void toggleStatus() {
-        LogUtils.getInstance().d(TAG, "toggleStatus: Toggling status for task ID: " + taskId);
-        if (task == null) {
-            LogUtils.getInstance().w(TAG, "toggleStatus: Task is null");
-            return;
+    /**
+     * 更新状态文本显示（带颜色）
+     */
+    private void updateStatusUI() {
+        if (task == null) return;
+        
+        String statusText = task.getStatusText();
+        textStatus.setText(statusText);
+        
+        // 设置状态颜色
+        int colorIndex = task.getStatus() - Task.STATUS_NEW;
+        if (colorIndex >= 0 && colorIndex < statusColors.length) {
+            textStatus.setTextColor(statusColors[colorIndex]);
+        } else {
+            textStatus.setTextColor(ContextCompat.getColor(this, R.color.text_primary));
         }
         
-        if (task.isDone()) {
-            taskViewModel.markAsTodo(taskId);
-            Toast.makeText(this, "已标记为待办", Toast.LENGTH_SHORT).show();
-        } else {
-            taskViewModel.markAsDone(taskId);
-            Toast.makeText(this, "已标记为完成", Toast.LENGTH_SHORT).show();
+        LogUtils.getInstance().d(TAG, "updateStatusUI: Status text updated: " + statusText + ", color index: " + colorIndex);
+    }
+    
+    /**
+     * 更新状态下拉框的选择位置
+     */
+    private void updateStatusSpinnerSelection() {
+        if (task == null) return;
+        
+        int currentStatusId = task.getStatus();
+        for (int i = 0; i < statusIds.length; i++) {
+            if (statusIds[i] == currentStatusId) {
+                spinnerStatus.setSelection(i);
+                LogUtils.getInstance().d(TAG, "updateStatusSpinnerSelection: Set to index " + i + " for status " + currentStatusId);
+                break;
+            }
         }
     }
     
