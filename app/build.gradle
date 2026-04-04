@@ -58,8 +58,10 @@ dependencies {
     // Gson for JSON
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // 🆕 Android Crash Detector - Global exception handler with crash logging to external storage
-    implementation 'com.github.hxcan:android-crash-detector:2026.4.5'
+    // 🆕 Android Crash Detector - 升级版带崩溃调查界面
+    // 版本：2026.4.5 → 2026.4.8
+    // 新功能：崩溃时弹出调查界面，展示崩溃详情并收集用户反馈
+    implementation 'com.github.hxcan:android-crash-detector:2026.4.8'
     
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
