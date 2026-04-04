@@ -52,16 +52,15 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.6.1'
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
     
-    // Builtin FTP Server - Updated to latest version with LIST command fix
+    // Builtin FTP Server
     implementation 'com.github.hxcan:builtinftp:2026.3.31'
 
     // Gson for JSON
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // 🆕 Android Crash Detector - 最新版带崩溃调查界面
-    // 版本：2026.4.5 → 2026.4.6 (GitHub 最新 tag)
-    // 新功能：崩溃时弹出调查界面，展示崩溃详情并收集用户反馈
-    implementation 'com.github.hxcan:android-crash-detector:2026.4.6'
+    // 🆕 Android Crash Detector - 崩溃报告界面（库自动注册 Activity）
+    // 版本：2026.4.8 (基于 PR #9 合并后的正式版本)
+    implementation 'com.github.hxcan:android-crash-detector:2026.4.8'
     
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
