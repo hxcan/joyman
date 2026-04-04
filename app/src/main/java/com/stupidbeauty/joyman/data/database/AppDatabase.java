@@ -14,16 +14,17 @@ import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 
+
 /**
  * JoyMan 应用数据库
  * 
  * 数据库信息：
  * - 名称：joyman-db
- * - 版本：2（支持任务关联项目）
+ * - 版本：3（任务状态常量扩展）
  * - 实体类：Task, Project
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.0
+ * @version 3.0.0
  * @since 2026-03-31
  */
 @Database(
@@ -31,7 +32,7 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
         Task.class,
         Project.class
     },
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -60,7 +61,7 @@ public abstract class AppDatabase extends RoomDatabase {
                 AppDatabase.class,
                 DATABASE_NAME
             )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -95,6 +96,21 @@ public abstract class AppDatabase extends RoomDatabase {
             database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
             
             android.util.Log.d("AppDatabase", "Migrated from version 1 to version 2: Added project_id column");
+        }
+    };
+    
+    /**
+     * 数据库迁移：版本 2 → 版本 3
+     * 
+     * 变更内容：
+     * - Task 实体类状态常量扩展（STATUS_NEW, STATUS_IN_PROGRESS, STATUS_RESOLVED, STATUS_FEEDBACK, STATUS_CLOSED）
+     * - 无实际数据库 schema 变更，仅更新版本号以匹配新的 identity hash
+     */
+    static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // 无需实际迁移操作，Task 实体类的 Java 常量变更不影响数据库 schema
+            android.util.Log.d("AppDatabase", "Migrated from version 2 to version 3: Updated status constants");
         }
     };
     
