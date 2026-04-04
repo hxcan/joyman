@@ -47,6 +47,15 @@
                 android:value=".MainActivity" />
         </activity>
         
+        <!-- 🆕 Crash Report Activity - 崩溃报告展示界面 (独立进程) -->
+        <activity
+            android:name="com.stupidbeauty.crashdetector.CrashReportActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Material.Light.DarkActionBar" />
+        
     </application>
 
 </manifest>
