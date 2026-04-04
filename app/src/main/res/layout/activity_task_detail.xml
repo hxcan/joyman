@@ -38,7 +38,6 @@
                 android:gravity="center_vertical"
                 android:layout_marginBottom="16dp">
 
-                <!-- 任务标题 -->
                 <TextView
                     android:id="@+id/text_detail_title"
                     android:layout_width="0dp"
@@ -49,7 +48,6 @@
                     android:textColor="#212121"
                     android:text="任务标题" />
 
-                <!-- 复制按钮 -->
                 <ImageButton
                     android:id="@+id/btn_copy_title"
                     android:layout_width="40dp"
@@ -57,8 +55,7 @@
                     android:layout_marginStart="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_copy"
-                    android:contentDescription="复制标题到剪贴板"
-                    android:tooltipText="复制标题" />
+                    android:contentDescription="复制标题到剪贴板" />
 
             </LinearLayout>
 
@@ -87,7 +84,6 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <!-- 任务状态 - 带颜色标签 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -114,7 +110,6 @@
 
                     </LinearLayout>
 
-                    <!-- 优先级 -->
                     <TextView
                         android:id="@+id/text_detail_priority"
                         android:layout_width="match_parent"
@@ -124,7 +119,6 @@
                         android:layout_marginBottom="12dp"
                         android:text="优先级：普通" />
 
-                    <!-- 所属项目 -->
                     <TextView
                         android:id="@+id/text_detail_project"
                         android:layout_width="match_parent"
@@ -134,7 +128,6 @@
                         android:layout_marginBottom="12dp"
                         android:text="所属项目：无" />
 
-                    <!-- 创建时间 -->
                     <TextView
                         android:id="@+id/text_detail_created_at"
                         android:layout_width="match_parent"
@@ -147,7 +140,7 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 状态切换 -->
+            <!-- 更改状态 -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -160,15 +153,6 @@
                 android:id="@+id/spinner_status"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:layout_marginBottom="8dp" />
-
-            <!-- 保存状态更改按钮 -->
-            <Button
-                android:id="@+id/btn_save_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="保存状态更改"
-                android:backgroundTint="#2196F3"
                 android:layout_marginBottom="16dp" />
 
             <!-- 移动项目 -->
@@ -186,13 +170,15 @@
                 android:layout_height="48dp"
                 android:layout_marginBottom="16dp" />
 
-            <!-- 保存项目更改按钮 -->
+            <!-- 统一保存按钮 -->
             <Button
-                android:id="@+id/btn_save_project"
+                android:id="@+id/btn_save_changes"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="保存项目更改"
-                android:backgroundTint="#4CAF50"
+                android:text="保存更改"
+                android:backgroundTint="#2196F3"
+                android:enabled="false"
+                android:alpha="0.5"
                 android:layout_marginBottom="12dp" />
 
             <!-- 操作按钮 -->
