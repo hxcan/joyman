@@ -59,8 +59,8 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // 🆕 Android Crash Detector - 崩溃报告界面（库自动注册 Activity）
-    // 版本：2026.4.6 → 2026.4.7
-    implementation 'com.github.hxcan:android-crash-detector:2026.4.7'
+    // 版本：2026.4.8 (基于 PR #9 合并后的正式版本)
+    implementation 'com.github.hxcan:android-crash-detector:2026.4.8'
     
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
