@@ -160,6 +160,15 @@
                 android:id="@+id/spinner_status"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- 保存状态更改按钮 -->
+            <Button
+                android:id="@+id/btn_save_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="保存状态更改"
+                android:backgroundTint="#2196F3"
                 android:layout_marginBottom="16dp" />
 
             <!-- 移动项目 -->
