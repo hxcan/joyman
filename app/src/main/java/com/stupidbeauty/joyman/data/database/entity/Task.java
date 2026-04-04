@@ -4,7 +4,8 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.ColumnInfo;
 import androidx.room.Index;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Task 任务实体类
@@ -13,7 +14,7 @@ import java.util.Date;
  * 用于存储单个任务的完整信息
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.2
+ * @version 2.0.3
  * @since 2026-03-31
  */
 @Entity(
@@ -25,8 +26,14 @@ import java.util.Date;
 public class Task {
     
     /**
-     * 任务状态常量（与 Redmine 默认状态一致）
-     * 参考：https://www.redmine.org/projects/redmine/wiki/Rest_IssueStatuses
+     * JoyMan 默认任务状态集合（固定值，与 Redmine 典型默认状态一致）
+     * 
+     * 说明：
+     * - ID 为固定连续值，不随实例变化
+     * - 新创建的 JoyMan 项目将使用此默认状态集合
+     * - 后续版本可支持自定义状态，但默认值保持不变
+     * 
+     * 参考：Redmine 初次安装时的默认状态
      */
     public static final int STATUS_NEW = 1;          // 新建
     public static final int STATUS_IN_PROGRESS = 2;  // 进行中
@@ -71,7 +78,7 @@ public class Task {
     
     /**
      * 任务状态（默认：新建）
-     * 取值与 Redmine 默认状态 ID 一致
+     * 取值范围：1-5（JoyMan 默认状态集合）
      */
     @ColumnInfo(name = "status", defaultValue = "1")
     private int status;
@@ -120,7 +127,7 @@ public class Task {
     public Task(long id, String title) {
         this.id = id;
         this.title = title;
-        this.status = STATUS_NEW;
+        this.status = STATUS_NEW;  // 默认状态：新建
         this.priority = PRIORITY_NORMAL;
         this.createdAt = System.currentTimeMillis();
         this.updatedAt = this.createdAt;
@@ -218,7 +225,7 @@ public class Task {
     
     /**
      * 根据状态 ID 获取状态名称（静态方法，便于 UI 使用）
-     * @param statusId 状态 ID（与 Redmine 一致）
+     * @param statusId 状态 ID（JoyMan 默认：1-5）
      * @return 状态中文名称
      */
     public static String getStatusNameById(int statusId) {
@@ -244,6 +251,31 @@ public class Task {
             case STATUS_CLOSED: return "status-closed";
             default: return "status-unknown";
         }
+    }
+    
+    /**
+     * 获取 JoyMan 默认状态列表
+     * @return 状态 ID 数组 [1, 2, 3, 4, 5]
+     */
+    public static int[] getDefaultStatusIds() {
+        return new int[]{STATUS_NEW, STATUS_IN_PROGRESS, STATUS_RESOLVED, STATUS_FEEDBACK, STATUS_CLOSED};
+    }
+    
+    /**
+     * 获取状态 ID 对应的中文名称列表
+     * @return 状态名称数组 ["新建", "进行中", "已解决", "反馈中", "已关闭"]
+     */
+    public static String[] getDefaultStatusNames() {
+        return new String[]{"新建", "进行中", "已解决", "反馈中", "已关闭"};
+    }
+    
+    /**
+     * 验证状态 ID 是否为有效的默认状态
+     * @param statusId 待验证的状态 ID
+     * @return true 如果是有效的默认状态
+     */
+    public static boolean isValidDefaultStatus(int statusId) {
+        return statusId >= STATUS_NEW && statusId <= STATUS_CLOSED;
     }
     
     public String getPriorityText() {
