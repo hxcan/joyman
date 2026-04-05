@@ -54,8 +54,7 @@ public class JoyManApiService extends NanoHTTPD {
         this.context = context;
         this.logUtils = LogUtils.getInstance();
         
-        // 转换为 Application 类型
-        Application application = context.getApplicationContext();
+        Application application = (Application) context.getApplicationContext();
         this.taskRepository = TaskRepository.getInstance(application);
         this.projectRepository = ProjectRepository.getInstance(application);
         
@@ -243,9 +242,9 @@ public class JoyManApiService extends NanoHTTPD {
             return authenticateBasic(authHeader.substring(6));
         }
         
-        Map<String, List<String>> params = session.getParms();
-        String username = params.containsKey("username") ? params.get("username").get(0) : null;
-        String password = params.containsKey("password") ? params.get("password").get(0) : null;
+        Map<String, String> params = session.getParms();
+        String username = params.get("username");
+        String password = params.get("password");
         
         if (username != null && password != null) {
             logUtils.w(TAG, "authenticate: URL parameters used (not recommended for production)");
@@ -319,13 +318,13 @@ public class JoyManApiService extends NanoHTTPD {
     private Response getIssues(IHTTPSession session) {
         logUtils.d(TAG, "getIssues: Listing all issues");
         
-        Map<String, List<String>> params = session.getParms();
-        String projectIdStr = params.containsKey("project_id") ? params.get("project_id").get(0) : null;
-        String statusIdStr = params.containsKey("status_id") ? params.get("status_id").get(0) : null;
-        String query = params.containsKey("query") ? params.get("query").get(0) : null;
-        String limitStr = params.containsKey("limit") ? params.get("limit").get(0) : null;
-        String offsetStr = params.containsKey("offset") ? params.get("offset").get(0) : null;
-        String sort = params.containsKey("sort") ? params.get("sort").get(0) : null;
+        Map<String, String> params = session.getParms();
+        String projectIdStr = params.get("project_id");
+        String statusIdStr = params.get("status_id");
+        String query = params.get("query");
+        String limitStr = params.get("limit");
+        String offsetStr = params.get("offset");
+        String sort = params.get("sort");
         
         int limit = limitStr != null ? Integer.parseInt(limitStr) : 25;
         int offset = offsetStr != null ? Integer.parseInt(offsetStr) : 0;
