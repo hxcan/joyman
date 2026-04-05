@@ -45,7 +45,7 @@
                     android:layout_weight="1"
                     android:textSize="24sp"
                     android:textStyle="bold"
-                    android:textColor="#212121"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:text="任务标题" />
 
                 <ImageButton
@@ -65,7 +65,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="16sp"
-                android:textColor="#757575"
+                android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginBottom="24dp"
                 android:visibility="gone"
                 android:text="任务描述" />
@@ -84,6 +84,16 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
+                    <!-- 任务 ID -->
+                    <TextView
+                        android:id="@+id/text_detail_id"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="12sp"
+                        android:textColor="?android:attr/textColorTertiary"
+                        android:layout_marginBottom="8dp"
+                        android:text="ID: 0" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -96,7 +106,7 @@
                             android:layout_height="wrap_content"
                             android:text="状态："
                             android:textSize="14sp"
-                            android:textColor="#757575" />
+                            android:textColor="?android:attr/textColorSecondary" />
 
                         <TextView
                             android:id="@+id/text_detail_status"
@@ -115,7 +125,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:textSize="14sp"
-                        android:textColor="#212121"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:layout_marginBottom="12dp"
                         android:text="优先级：普通" />
 
@@ -124,7 +134,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:textSize="14sp"
-                        android:textColor="#212121"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:layout_marginBottom="12dp"
                         android:text="所属项目：无" />
 
@@ -132,9 +142,9 @@
                         android:id="@+id/text_detail_created_at"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textSize="14sp"
-                        android:textColor="#9E9E9E"
-                        android:text="创建时间：2026-04-01 10:00" />
+                        android:textSize="12sp"
+                        android:textColor="?android:attr/textColorTertiary"
+                        android:text="创建时间：2026-04-01 10:00:00" />
 
                 </LinearLayout>
 
@@ -146,7 +156,7 @@
                 android:layout_height="wrap_content"
                 android:text="更改状态"
                 android:textSize="14sp"
-                android:textColor="#757575"
+                android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginBottom="8dp" />
 
             <Spinner
@@ -161,7 +171,7 @@
                 android:layout_height="wrap_content"
                 android:text="移动到项目"
                 android:textSize="14sp"
-                android:textColor="#757575"
+                android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginBottom="8dp" />
 
             <Spinner
@@ -212,7 +222,7 @@
                 android:text="子任务"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#212121"
+                android:textColor="?android:attr/textColorPrimary"
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="12dp"
                 android:visibility="gone" />
@@ -230,7 +240,7 @@
                 android:layout_height="wrap_content"
                 android:text="暂无子任务"
                 android:textSize="14sp"
-                android:textColor="#9E9E9E"
+                android:textColor="?android:attr/textColorTertiary"
                 android:gravity="center"
                 android:padding="16dp"
                 android:visibility="gone" />
