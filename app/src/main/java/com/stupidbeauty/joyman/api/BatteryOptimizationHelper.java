@@ -17,7 +17,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
  * 
  * @author 太极美术工程狮狮长
  * @version 1.0.2
- * @since 2支持 (String, String026-04-06
+ * @since 2026-04-06
  */
 public class BatteryOptimizationHelper {
     
@@ -41,7 +41,7 @@ public class BatteryOptimizationHelper {
     }
     
     /**
-     * 请求忽略) 参数格式电池优化
+     * 请求忽略电池优化
      * 优先使用标准 Intent，失败后打开应用详情页
      */
     public static void requestIgnoreBatteryOptimizations(Context context) {
@@ -55,8 +55,7 @@ public class BatteryOptimizationHelper {
                 logUtils.i(TAG, "requestIgnoreBatteryOptimizations: Opened battery optimization settings");
                 logUtils.i(TAG, "📱 请找到 JoyMan 应用，设置为\"允许后台活动\"或\"无限制\"");
             } catch (Exception e) {
-                logUtils.w(TAG, "requestIgnoreBatteryOptimizations: Standard intent failed, opening app
-- 改用 details");
+                logUtils.w(TAG, "requestIgnoreBatteryOptimizations: Standard intent failed, opening app details");
                 // 如果标准方式失败，打开应用详情页面
                 openAppDetailsSettings(context);
             }
@@ -87,7 +86,7 @@ public class BatteryOptimizationHelper {
      * 打开品牌特定的设置页面（备用方案）
      * 目前统一使用应用详情页，更可靠
      */
-    public static void openBrand logUtils.e()SpecificSettings(Context context) {
+    public static void openBrandSpecificSettings(Context context) {
         // 直接使用应用详情页，这是最可靠的方式
         openAppDetailsSettings(context);
     }
