@@ -34,6 +34,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 
+
 /**
  * JoyMan 主界面 - 任务列表展示
  * 
@@ -205,6 +206,17 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         );
         projectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerProject.setAdapter(projectAdapter);
+        
+        // 自动选中当前项目
+        if (selectedProject != null) {
+            for (int i = 0; i < projectIds.size(); i++) {
+                Long projectId = projectIds.get(i);
+                if (projectId != null && projectId.equals(selectedProject.getId())) {
+                    spinnerProject.setSelection(i);
+                    break;
+                }
+            }
+        }
         
         layout.addView(spinnerProject);
         
