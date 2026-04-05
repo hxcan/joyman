@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 
 
+
 /**
  * 任务详情界面
  * 
@@ -231,7 +232,7 @@ public class TaskDetailActivity extends AppCompatActivity {
             if (pendingProjectId != null) {
                 changes.add("项目");
             }
-            hint.append(String.join("、", changes));
+            hint.append(String.join(",", changes));
             ((TextView) btnSaveChanges).setText(hint.toString());
         } else {
             ((TextView) btnSaveChanges).setText("保存更改");
@@ -257,6 +258,18 @@ public class TaskDetailActivity extends AppCompatActivity {
             return;
         }
         
+        // 获取项目名称，格式：[项目名] 任务标题
+        String copyContent = title;
+        if (task.getProjectId() != null && projectList != null) {
+            long targetProjectId = task.getProjectId();
+            for (Project p : projectList) {
+                if (p != null && p.getId() == targetProjectId) {
+                    copyContent = "[" + p.getName() + "] " + title;
+                    break;
+                }
+            }
+        }
+        
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) {
             LogUtils.getInstance().e(TAG, "copyTitleToClipboard: ClipboardManager is null");
@@ -264,12 +277,12 @@ public class TaskDetailActivity extends AppCompatActivity {
             return;
         }
         
-        ClipData clip = ClipData.newPlainText("JoyMan 任务标题", title);
+        ClipData clip = ClipData.newPlainText("JoyMan 任务标题", copyContent);
         clipboard.setPrimaryClip(clip);
         
-        LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Title copied successfully: " + title);
+        LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Title copied successfully: " + copyContent);
         
-        String toastMessage = "已复制：" + title;
+        String toastMessage = "已复制：" + copyContent;
         if (toastMessage.length() > 50) {
             toastMessage = toastMessage.substring(0, 47) + "...";
         }
@@ -387,7 +400,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         // 执行保存
         taskViewModel.update(task);
         
-        String message = "已保存：" + String.join("、", savedItems);
+        String message = "已保存：" + String.join(",", savedItems);
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
         
         updateUI();
