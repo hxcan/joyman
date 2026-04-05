@@ -10,8 +10,8 @@ android {
         applicationId "com.stupidbeauty.joyman"
         minSdk 24
         targetSdk 34
-        versionCode 5
-        versionName "2026.4.5-api"
+        versionCode 6
+        versionName "20260406"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
