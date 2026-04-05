@@ -17,10 +17,11 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.LogUtils;
 
 
+
 /**
  * JoyMan 应用数据库
  */
-@Database(entities = {Task.class, Project.class}, version = 3, exportSchema = false)
+@Database(entities = {Task.class, Project.class}, version = 4, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     
     private static final String DATABASE_NAME = "joyman-db";
@@ -44,7 +45,7 @@ public abstract class AppDatabase extends RoomDatabase {
     @NonNull
     private static AppDatabase buildDatabase(Context context) {
         return Room.databaseBuilder(context, AppDatabase.class, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -112,6 +113,30 @@ public abstract class AppDatabase extends RoomDatabase {
             database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Schema and data updated successfully");
+        }
+    };
+    
+    /**
+     * 数据库迁移：版本 3 → 版本 4
+     * 为 tasks 表添加 parent_id 列以支持子任务功能
+     */
+    static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            LogUtils.getInstance().d(TAG, "MIGRATION_3_4: START - Adding parent_id column for subtask support");
+            
+            // 检查 parent_id 列是否已存在（防止重复迁移）
+            if (!checkColumnExists(database, "tasks", "parent_id")) {
+                // 添加 parent_id 列（允许 NULL，不影响现有任务）
+                database.execSQL("ALTER TABLE tasks ADD COLUMN parent_id INTEGER DEFAULT NULL");
+                
+                // 创建索引优化子任务查询性能
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_parent_id ON tasks(parent_id)");
+                
+                LogUtils.getInstance().i(TAG, "MIGRATION_3_4: ✅ parent_id column added successfully");
+            } else {
+                LogUtils.getInstance().w(TAG, "MIGRATION_3_4: ⚠️ parent_id column already exists, skipping");
+            }
         }
     };
     
