@@ -1,6 +1,9 @@
 package com.stupidbeauty.joyman;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -12,8 +15,11 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -27,25 +33,27 @@ import com.stupidbeauty.joyman.ui.adapter.ProjectAdapter;
 import com.stupidbeauty.joyman.ui.adapter.TaskAdapter;
 import com.stupidbeauty.joyman.viewmodel.ProjectViewModel;
 import com.stupidbeauty.joyman.viewmodel.TaskViewModel;
+import com.stupidbeauty.joyman.util.LogUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-
-
 /**
  * JoyMan 主界面 - 任务列表展示
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.4
+ * @version 3.0.5
  * @since 2026-04-01
  */
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener, ProjectAdapter.OnProjectClickListener {
     
     private static final String TAG = "MainActivity";
     private static final int FTP_SERVER_PORT = 2122;
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 1001;
+    
+    private static MainActivity instance;
     
     private RecyclerView recyclerView;
     private TaskAdapter taskAdapter;
@@ -58,10 +66,16 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private ArrayAdapter<String> projectSpinnerAdapter;
     private BuiltinFtpServer builtinFtpServer;
     private BuiltinFtpServerErrorListener errorListener;
+    private LogUtils logUtils;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
+        logUtils = LogUtils.getInstance();
+        
+        logUtils.i(TAG, "onCreate: MainActivity created");
+        
         setContentView(R.layout.activity_main);
         setSupportActionBar(findViewById(R.id.toolbar));
         
@@ -74,6 +88,24 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         observeData();
         setupClickListeners();
         scheduleStartFtpServer();
+        
+        // 检查通知权限（Android 13+）
+        checkNotificationPermission();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (instance == this) {
+            instance = null;
+        }
+    }
+    
+    /**
+     * 获取 MainActivity 实例（用于 Service 请求权限）
+     */
+    public static MainActivity getInstance() {
+        return instance;
     }
 
     private void initViews() {
@@ -165,7 +197,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             LinearLayout.LayoutParams.WRAP_CONTENT));
         layout.addView(editTextTitle);
         
-        // 任务描述输入框（新增）
+        // 任务描述输入框
         EditText editTextDescription = new EditText(this);
         editTextDescription.setHint("任务描述（可选）");
         editTextDescription.setLayoutParams(new LinearLayout.LayoutParams(
@@ -206,17 +238,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         );
         projectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerProject.setAdapter(projectAdapter);
-        
-        // 自动选中当前项目
-        if (selectedProject != null) {
-            for (int i = 0; i < projectIds.size(); i++) {
-                Long projectId = projectIds.get(i);
-                if (projectId != null && projectId.equals(selectedProject.getId())) {
-                    spinnerProject.setSelection(i);
-                    break;
-                }
-            }
-        }
         
         layout.addView(spinnerProject);
         
@@ -342,6 +363,44 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         builtinFtpServer.setErrorListener(errorListener);
         builtinFtpServer.start();
         android.util.Log.d(TAG, "FTP server started on port " + FTP_SERVER_PORT);
+    }
+    
+    /**
+     * 检查通知权限（Android 13+）
+     */
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                logUtils.w(TAG, "checkNotificationPermission: Permission not granted, requesting...");
+                ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                );
+            } else {
+                logUtils.d(TAG, "checkNotificationPermission: Permission already granted");
+            }
+        }
+    }
+    
+    /**
+     * 处理权限请求结果
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                logUtils.i(TAG, "onRequestPermissionsResult: Notification permission granted");
+                Toast.makeText(this, "通知权限已授予，API 服务将显示通知", Toast.LENGTH_SHORT).show();
+            } else {
+                logUtils.w(TAG, "onRequestPermissionsResult: Notification permission denied");
+                Toast.makeText(this, "通知权限被拒绝，API 服务可能无法正常显示通知", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     @Override
