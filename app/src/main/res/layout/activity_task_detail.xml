@@ -204,6 +204,37 @@
                 android:text="删除任务"
                 android:backgroundTint="#F44336" />
 
+            <!-- 子任务列表区域 -->
+            <TextView
+                android:id="@+id/text_subtasks_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="子任务"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#212121"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_view_subtasks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/text_no_subtasks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="暂无子任务"
+                android:textSize="14sp"
+                android:textColor="#9E9E9E"
+                android:gravity="center"
+                android:padding="16dp"
+                android:visibility="gone" />
+
         </LinearLayout>
 
     </ScrollView>
