@@ -8,7 +8,9 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -36,7 +38,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.10
+ * @version 1.0.11
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -59,6 +61,7 @@ public class TaskDetailActivity extends AppCompatActivity {
     private Spinner spinnerProject;
     private Spinner spinnerStatus;
     private View btnSaveChanges;
+    private View btnCreateSubtask;
     
     private List<Project> projectList;
     private Long pendingProjectId;   // 暂存待保存的项目 ID
@@ -141,9 +144,13 @@ public class TaskDetailActivity extends AppCompatActivity {
         spinnerProject = findViewById(R.id.spinner_detail_project);
         spinnerStatus = findViewById(R.id.spinner_status);
         btnSaveChanges = findViewById(R.id.btn_save_changes);
+        btnCreateSubtask = findViewById(R.id.btn_create_subtask);
         
         // 设置复制按钮点击事件
         btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
+        
+        // 设置创建子任务按钮点击事件
+        btnCreateSubtask.setOnClickListener(v -> showCreateSubtaskDialog());
         
         // 初始化状态下拉框
         ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(
@@ -287,6 +294,104 @@ public class TaskDetailActivity extends AppCompatActivity {
             toastMessage = toastMessage.substring(0, 47) + "...";
         }
         Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show();
+    }
+    
+    /**
+     * 显示创建子任务对话框
+     */
+    private void showCreateSubtaskDialog() {
+        if (task == null) {
+            Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 50, 50, 50);
+        
+        EditText editTextTitle = new EditText(this);
+        editTextTitle.setHint("输入子任务标题");
+        editTextTitle.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT));
+        layout.addView(editTextTitle);
+        
+        // 项目选择器（可选，默认继承当前任务的项目）
+        Spinner spinnerProject = new Spinner(this);
+        spinnerProject.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT));
+        
+        List<String> projectNames = new ArrayList<>();
+        List<Long> projectIds = new ArrayList<>();
+        
+        projectNames.add("无项目");
+        projectIds.add(null);
+        
+        if (projectList != null) {
+            for (int i = 0; i < projectList.size(); i++) {
+                Project p = projectList.get(i);
+                if (i == 0) continue; // 跳过第一个 null
+                if (p != null) {
+                    projectNames.add(p.getIconDisplay() + " " + p.getName());
+                    projectIds.add(p.getId());
+                }
+            }
+        }
+        
+        ArrayAdapter<String> projectAdapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_spinner_item,
+            projectNames
+        );
+        projectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerProject.setAdapter(projectAdapter);
+        
+        // 默认选中当前任务的项目
+        if (task.getProjectId() != null) {
+            for (int i = 0; i < projectIds.size(); i++) {
+                Long pid = projectIds.get(i);
+                if (pid != null && pid.equals(task.getProjectId())) {
+                    spinnerProject.setSelection(i);
+                    break;
+                }
+            }
+        }
+        
+        layout.addView(spinnerProject);
+        
+        new AlertDialog.Builder(this)
+            .setTitle("创建子任务")
+            .setMessage("父任务：" + task.getTitle())
+            .setView(layout)
+            .setPositiveButton("创建", (dialog, which) -> {
+                String title = editTextTitle.getText().toString().trim();
+                if (!title.isEmpty()) {
+                    int selectedPosition = spinnerProject.getSelectedItemPosition();
+                    Long projectId = null;
+                    if (selectedPosition > 0 && selectedPosition < projectIds.size()) {
+                        projectId = projectIds.get(selectedPosition);
+                    }
+                    
+                    // 创建子任务
+                    long subtaskId = taskViewModel.createTask(title);
+                    
+                    // 设置项目
+                    if (projectId != null) {
+                        Task subtask = new Task(subtaskId, title);
+                        subtask.setProjectId(projectId);
+                        taskViewModel.update(subtask);
+                    }
+                    
+                    // TODO: 设置父子关系（需要数据库支持）
+                    
+                    Toast.makeText(this, "子任务已创建", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "任务标题不能为空", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
     }
     
     private void loadTask() {
