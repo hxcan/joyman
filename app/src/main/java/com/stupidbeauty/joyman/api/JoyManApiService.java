@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import fi.iki.elonen.NanoHTTPD;
@@ -26,7 +28,7 @@ import fi.iki.elonen.NanoHTTPD;
  * 使用 HTTP Basic Auth 认证（用户名 + 密码）
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.3
+ * @version 1.0.4
  * @since 2026-04-05
  */
 public class JoyManApiService extends NanoHTTPD {
@@ -34,22 +36,24 @@ public class JoyManApiService extends NanoHTTPD {
     private static final String TAG = "JoyManApiService";
     private static final int DEFAULT_PORT = 8080;
     
-    // 默认管理员账号（可配置）
+    // 默认管理员账号
     private static final String DEFAULT_ADMIN_USERNAME = "admin";
     private static final String DEFAULT_ADMIN_PASSWORD = "admin";
+    
+    // URL 路径正则表达式
+    private static final Pattern ISSUE_ID_PATTERN = Pattern.compile("^issues/(\\d+)\\.json$");
     
     private Context context;
     private LogUtils logUtils;
     private TaskRepository taskRepository;
     private ProjectRepository projectRepository;
     
-    // 管理员账号（可从配置读取）
+    // 管理员账号
     private String adminUsername;
     private String adminPassword;
     
     /**
      * 构造函数
-     * @param context 应用上下文
      */
     public JoyManApiService(Context context) {
         super(DEFAULT_PORT);
@@ -58,8 +62,6 @@ public class JoyManApiService extends NanoHTTPD {
     
     /**
      * 构造函数（自定义端口）
-     * @param context 应用上下文
-     * @param port 端口号
      */
     public JoyManApiService(Context context, int port) {
         super(port);
@@ -75,13 +77,12 @@ public class JoyManApiService extends NanoHTTPD {
         this.taskRepository = TaskRepository.getInstance(context);
         this.projectRepository = ProjectRepository.getInstance(context);
         
-        // 读取管理员账号（简化实现，后续可从 SharedPreferences 读取）
         this.adminUsername = DEFAULT_ADMIN_USERNAME;
         this.adminPassword = DEFAULT_ADMIN_PASSWORD;
         
         logUtils.i(TAG, "Constructor: JoyMan API server initialized");
         logUtils.i(TAG, "Admin username: " + adminUsername);
-        logUtils.i(TAG, "⚠️ WARNING: Using default admin credentials. Change in production!");
+        logUtils.w(TAG, "⚠️ WARNING: Using default admin credentials. Change in production!");
     }
     
     /**
@@ -108,7 +109,6 @@ public class JoyManApiService extends NanoHTTPD {
         
         // 跳过根路径的认证（用于健康检查）
         if (!uri.equals("/") && !uri.equals("")) {
-            // 认证检查
             if (!authenticate(session)) {
                 logUtils.w(TAG, "Authentication failed for " + uri);
                 return createCorsResponse(Response.Status.UNAUTHORIZED, "application/json", 
@@ -118,13 +118,19 @@ public class JoyManApiService extends NanoHTTPD {
         
         // 路由分发
         Response response;
-        if (uri.startsWith("issues.json")) {
+        
+        // 检查是否是单个任务的路径（/issues/:id.json）
+        Matcher matcher = ISSUE_ID_PATTERN.matcher(uri);
+        if (matcher.matches()) {
+            long issueId = Long.parseLong(matcher.group(1));
+            response = handleSingleIssue(session, method, issueId);
+        } else if (uri.startsWith("issues.json")) {
             response = handleIssues(session, method);
         } else if (uri.startsWith("projects.json")) {
             response = handleProjects(session, method);
         } else if (uri.equals("/") || uri.equals("")) {
             response = createCorsResponse(Response.Status.OK, "application/json", 
-                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.3\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/projects.json\"]}");
+                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.4\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
         } else {
             response = createCorsResponse(Response.Status.NOT_FOUND, "text/plain", "Not Found");
             logUtils.w(TAG, "Unknown endpoint: " + uri);
@@ -134,10 +140,164 @@ public class JoyManApiService extends NanoHTTPD {
     }
     
     /**
+     * 处理单个任务相关请求
+     */
+    private Response handleSingleIssue(IHTTPSession session, Method method, long issueId) {
+        switch (method) {
+            case GET:
+                return getIssue(session, issueId);
+            case PUT:
+                return updateIssue(session, issueId);
+            case DELETE:
+                return deleteIssue(session, issueId);
+            default:
+                return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "text/plain", "Method Not Allowed");
+        }
+    }
+    
+    /**
+     * GET /issues/:id.json - 获取单个任务详情
+     */
+    private Response getIssue(IHTTPSession session, long issueId) {
+        logUtils.d(TAG, "getIssue: Getting issue " + issueId);
+        
+        // 查询任务
+        Task task = taskRepository.getTaskById(issueId);
+        
+        if (task == null) {
+            logUtils.w(TAG, "getIssue: Issue " + issueId + " not found");
+            return createCorsResponse(Response.Status.NOT_FOUND, "application/json", 
+                "{\"error\":\"Issue not found\"}");
+        }
+        
+        // 获取项目信息（如果有）
+        Project project = null;
+        if (task.getProjectId() != null) {
+            // 简化处理，实际应该查询项目
+            project = null;
+        }
+        
+        // 转换为 JSON
+        JsonObject issueJson = ApiJsonConverter.taskToIssueJson(task, project);
+        JsonObject responseJson = new JsonObject();
+        responseJson.add("issue", issueJson);
+        
+        logUtils.i(TAG, "getIssue: Returned issue " + issueId);
+        
+        return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
+    }
+    
+    /**
+     * PUT /issues/:id.json - 更新任务
+     */
+    private Response updateIssue(IHTTPSession session, long issueId) {
+        logUtils.d(TAG, "updateIssue: Updating issue " + issueId);
+        
+        try {
+            // 解析请求体
+            Map<String, String> files = new HashMap<>();
+            session.parseBody(files);
+            String postData = files.get("postData");
+            
+            if (postData == null || postData.isEmpty()) {
+                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
+                    "{\"error\":\"No data provided\"}");
+            }
+            
+            logUtils.d(TAG, "updateIssue: Received data: " + postData);
+            
+            // 查询现有任务
+            Task existingTask = taskRepository.getTaskById(issueId);
+            if (existingTask == null) {
+                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", 
+                    "{\"error\":\"Issue not found\"}");
+            }
+            
+            // 解析 JSON 并更新任务
+            JsonObject requestJson = com.google.gson.JsonParser.parseString(postData).getAsJsonObject();
+            
+            if (requestJson.has("issue")) {
+                JsonObject issueJson = requestJson.getAsJsonObject("issue");
+                
+                // 更新标题
+                if (issueJson.has("subject")) {
+                    existingTask.setTitle(issueJson.get("subject").getAsString());
+                }
+                
+                // 更新描述
+                if (issueJson.has("description")) {
+                    existingTask.setDescription(issueJson.get("description").getAsString());
+                }
+                
+                // 更新状态
+                if (issueJson.has("status_id")) {
+                    existingTask.setStatus(issueJson.get("status_id").getAsInt());
+                }
+                
+                // 更新优先级
+                if (issueJson.has("priority")) {
+                    existingTask.setPriority(issueJson.get("priority").getAsInt());
+                }
+                
+                // 更新项目
+                if (issueJson.has("project_id")) {
+                    existingTask.setProjectId(issueJson.get("project_id").getAsLong());
+                }
+                
+                // 更新父任务
+                if (issueJson.has("parent_issue_id")) {
+                    existingTask.setParentId(issueJson.get("parent_issue_id").getAsLong());
+                }
+            }
+            
+            // 保存更新
+            taskRepository.update(existingTask);
+            
+            logUtils.i(TAG, "updateIssue: Updated issue " + issueId);
+            
+            // 返回更新后的任务
+            JsonObject responseIssueJson = ApiJsonConverter.taskToIssueJson(existingTask, null);
+            JsonObject responseJson = new JsonObject();
+            responseJson.add("issue", responseIssueJson);
+            
+            return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
+            
+        } catch (IOException e) {
+            logUtils.e(TAG, "updateIssue: Error reading request body", e);
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
+                "{\"error\":\"Internal server error\"}");
+        } catch (Exception e) {
+            logUtils.e(TAG, "updateIssue: Error processing request", e);
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
+                "{\"error\":\"Invalid request data\"}");
+        }
+    }
+    
+    /**
+     * DELETE /issues/:id.json - 删除任务
+     */
+    private Response deleteIssue(IHTTPSession session, long issueId) {
+        logUtils.d(TAG, "deleteIssue: Deleting issue " + issueId);
+        
+        // 查询现有任务
+        Task existingTask = taskRepository.getTaskById(issueId);
+        if (existingTask == null) {
+            logUtils.w(TAG, "deleteIssue: Issue " + issueId + " not found");
+            return createCorsResponse(Response.Status.NOT_FOUND, "application/json", 
+                "{\"error\":\"Issue not found\"}");
+        }
+        
+        // 删除任务
+        taskRepository.deleteById(issueId);
+        
+        logUtils.i(TAG, "deleteIssue: Deleted issue " + issueId);
+        
+        // 返回成功响应（Redmine 风格：返回空内容）
+        return createCorsResponse(Response.Status.OK, "application/json", "{}");
+    }
+    
+    /**
      * 认证中间件 - HTTP Basic Auth
-     * 支持两种认证方式：
-     * 1. HTTP Basic Auth (Authorization: Basic base64(username:password))
-     * 2. URL 参数 (username=xxx&password=yyy) - 仅用于测试
      */
     private boolean authenticate(IHTTPSession session) {
         Map<String, String> headers = session.getHeaders();
@@ -148,7 +308,7 @@ public class JoyManApiService extends NanoHTTPD {
             return authenticateBasic(authHeader.substring(6));
         }
         
-        // 方式 2: URL 参数（仅用于调试，不推荐生产环境使用）
+        // 方式 2: URL 参数（仅用于调试）
         Map<String, String> params = new HashMap<>();
         try {
             session.parseUri(params);
@@ -169,17 +329,14 @@ public class JoyManApiService extends NanoHTTPD {
     
     /**
      * HTTP Basic Auth 认证
-     * @param base64Credentials Base64 编码的 "username:password"
      */
     private boolean authenticateBasic(String base64Credentials) {
         try {
-            // 解码 Base64
             String credentials = new String(
                 java.util.Base64.getDecoder().decode(base64Credentials), 
                 "UTF-8"
             );
             
-            // 分离用户名和密码
             final int index = credentials.indexOf(':');
             if (index <= 0) {
                 logUtils.w(TAG, "authenticateBasic: Invalid credentials format");
@@ -191,7 +348,6 @@ public class JoyManApiService extends NanoHTTPD {
             
             logUtils.d(TAG, "authenticateBasic: User=" + username);
             
-            // 验证用户名和密码
             return validateCredentials(username, password);
             
         } catch (Exception e) {
@@ -216,7 +372,7 @@ public class JoyManApiService extends NanoHTTPD {
     }
     
     /**
-     * 处理任务相关请求
+     * 处理任务列表相关请求
      */
     private Response handleIssues(IHTTPSession session, Method method) {
         switch (method) {
@@ -249,7 +405,6 @@ public class JoyManApiService extends NanoHTTPD {
     private Response getIssues(IHTTPSession session) {
         logUtils.d(TAG, "getIssues: Listing all issues");
         
-        // 解析查询参数
         Map<String, String> params = new HashMap<>();
         try {
             session.parseUri(params);
@@ -273,24 +428,19 @@ public class JoyManApiService extends NanoHTTPD {
             ", status_id=" + statusId + ", query=" + query + 
             ", limit=" + limit + ", offset=" + offset + ", sort=" + sort);
         
-        // 获取所有任务
         List<Task> allTasks = taskRepository.getAllTasksLive().getValue();
         if (allTasks == null) {
             allTasks = new ArrayList<>();
         }
         
-        // 应用过滤器
         List<Task> filteredTasks = allTasks.stream()
             .filter(task -> {
-                // 项目过滤
                 if (projectId != null && !projectId.equals(task.getProjectId())) {
                     return false;
                 }
-                // 状态过滤
                 if (statusId != null && statusId != task.getStatus()) {
                     return false;
                 }
-                // 关键词搜索
                 if (query != null && !query.isEmpty()) {
                     String lowerQuery = query.toLowerCase();
                     boolean matchesTitle = task.getTitle().toLowerCase().contains(lowerQuery);
@@ -304,7 +454,6 @@ public class JoyManApiService extends NanoHTTPD {
             })
             .collect(Collectors.toList());
         
-        // 排序
         if ("updated_on:desc".equals(sort)) {
             filteredTasks.sort((a, b) -> Long.compare(b.getUpdatedAt(), a.getUpdatedAt()));
         } else if ("updated_on:asc".equals(sort)) {
@@ -312,17 +461,14 @@ public class JoyManApiService extends NanoHTTPD {
         } else if ("created_on:desc".equals(sort)) {
             filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
         } else {
-            // 默认按创建时间降序
             filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
         }
         
-        // 分页
         int totalCount = filteredTasks.size();
         int fromIndex = Math.min(offset, totalCount);
         int toIndex = Math.min(offset + limit, totalCount);
         List<Task> paginatedTasks = fromIndex < toIndex ? filteredTasks.subList(fromIndex, toIndex) : new ArrayList<>();
         
-        // 转换为 JSON
         JsonObject responseJson = ApiJsonConverter.tasksToIssuesJson(paginatedTasks, totalCount, offset, limit);
         
         logUtils.i(TAG, "getIssues: Returned " + paginatedTasks.size() + " of " + totalCount + " issues");
@@ -337,7 +483,6 @@ public class JoyManApiService extends NanoHTTPD {
         logUtils.d(TAG, "createIssue: Creating new issue");
         
         try {
-            // 解析请求体
             Map<String, String> files = new HashMap<>();
             session.parseBody(files);
             String postData = files.get("postData");
@@ -349,7 +494,6 @@ public class JoyManApiService extends NanoHTTPD {
             
             logUtils.d(TAG, "createIssue: Received data: " + postData);
             
-            // 解析 JSON 并创建任务
             Task newTask = ApiJsonConverter.parseIssueJson(postData);
             
             if (newTask == null || newTask.getTitle() == null || newTask.getTitle().isEmpty()) {
@@ -357,11 +501,9 @@ public class JoyManApiService extends NanoHTTPD {
                     "{\"error\":\"Invalid issue data: subject is required\"}");
             }
             
-            // 生成 ID 并保存
             long taskId = taskRepository.createTask(newTask.getTitle(), newTask.getDescription());
             newTask.setId(taskId);
             
-            // 更新其他字段
             if (newTask.getProjectId() != null) {
                 newTask.setProjectId(newTask.getProjectId());
             }
@@ -373,7 +515,6 @@ public class JoyManApiService extends NanoHTTPD {
             
             logUtils.i(TAG, "createIssue: Created task " + taskId + ": " + newTask.getTitle());
             
-            // 返回创建的任务
             JsonObject issueJson = ApiJsonConverter.taskToIssueJson(newTask, null);
             JsonObject responseJson = new JsonObject();
             responseJson.add("issue", issueJson);
@@ -397,13 +538,11 @@ public class JoyManApiService extends NanoHTTPD {
     private Response getProjects(IHTTPSession session) {
         logUtils.d(TAG, "getProjects: Listing all projects");
         
-        // 获取所有项目
         List<Project> projects = projectRepository.getAllProjectsLive().getValue();
         if (projects == null) {
             projects = new ArrayList<>();
         }
         
-        // 转换为 JSON
         JsonObject responseJson = ApiJsonConverter.projectsToJson(projects);
         
         logUtils.i(TAG, "getProjects: Returned " + projects.size() + " projects");
@@ -418,7 +557,6 @@ public class JoyManApiService extends NanoHTTPD {
         logUtils.d(TAG, "createProject: Creating new project");
         
         try {
-            // 解析请求体
             Map<String, String> files = new HashMap<>();
             session.parseBody(files);
             String postData = files.get("postData");
@@ -430,9 +568,6 @@ public class JoyManApiService extends NanoHTTPD {
             
             logUtils.d(TAG, "createProject: Received data: " + postData);
             
-            // TODO: 解析 JSON 并创建项目
-            
-            // 临时响应
             String jsonResponse = "{\"project\":{\"id\":0,\"message\":\"TODO: Implement project creation\"}}";
             return createCorsResponse(Response.Status.CREATED, "application/json", jsonResponse);
             
@@ -449,10 +584,9 @@ public class JoyManApiService extends NanoHTTPD {
     private Response createCorsResponse(Response.Status status, String mimeType, String message) {
         Response response = newFixedLengthResponse(status, mimeType, message);
         
-        // CORS 头
         response.addHeader("Access-Control-Allow-Origin", "*");
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Redmine-API-Key");
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         response.addHeader("Access-Control-Max-Age", "86400");
         
         return response;
