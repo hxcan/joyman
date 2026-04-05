@@ -1,7 +1,9 @@
 package com.stupidbeauty.joyman;
 
 import android.app.Application;
-import android.util.Log;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.widget.Toast;
 
 import com.stupidbeauty.crashdetector.CrashHandler;
 import com.stupidbeauty.joyman.api.ApiForegroundService;
@@ -12,65 +14,113 @@ import com.stupidbeauty.joyman.util.LogUtils;
 /**
  * JoyMan Application class.
  * Initializes global crash detector and REST API service with foreground service.
+ * Auto-enables API in development mode for faster testing.
  */
 public class JoymanApplication extends Application {
     
     private static final String TAG = "JoymanApplication";
+    private static final String PREF_NAME = "joyman_settings";
+    private static final String KEY_FIRST_LAUNCH = "first_launch_with_api";
+    
     private ApiManager apiManager;
+    private LogUtils logUtils;
     
     @Override
     public void onCreate() {
         super.onCreate();
+        logUtils = LogUtils.getInstance();
         
-        Log.i(TAG, "onCreate: JoyMan Application starting...");
+        logUtils.i(TAG, "onCreate: JoyMan Application starting...");
         
-        // Initialize global crash detector - logs crashes to external storage
+        // Initialize global crash detector
         try {
             CrashHandler.init(this);
-            Log.i(TAG, "✅ Crash Detector initialized (v2026.4.5)");
+            logUtils.i(TAG, "✅ Crash Detector initialized (v2026.4.5)");
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to initialize CrashHandler", e);
+            logUtils.e(TAG, "❌ Failed to initialize CrashHandler", e);
         }
         
-        // Initialize and start REST API service with foreground service
+        // Initialize and start REST API service
         try {
             apiManager = ApiManager.getInstance(this);
             
-            if (apiManager.isApiEnabled()) {
+            // Development mode: Auto-enable API on first launch
+            boolean isFirstLaunch = isFirstLaunchWithApi();
+            logUtils.d(TAG, "isFirstLaunchWithApi: " + isFirstLaunch);
+            
+            if (isFirstLaunch || apiManager.isApiEnabled()) {
+                // Enable API if not already enabled
+                if (!apiManager.isApiEnabled()) {
+                    apiManager.setApiEnabled(true);
+                    logUtils.i(TAG, "🔧 Development mode: Auto-enabled REST API");
+                }
+                
                 // Check battery optimization status
                 if (!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)) {
-                    Log.w(TAG, "⚠️ Battery optimization is enabled, requesting ignore...");
-                    // Auto-open settings to guide user to disable battery optimization
+                    logUtils.w(TAG, "⚠️ Battery optimization is enabled, requesting ignore...");
+                    
+                    // Show toast to inform user
+                    Toast.makeText(this, 
+                        "正在启动 REST API 服务...\n请允许关闭电池优化以确保后台运行", 
+                        Toast.LENGTH_LONG).show();
+                    
+                    // Auto-open settings to guide user
                     BatteryOptimizationHelper.openBrandSpecificSettings(this);
                 }
                 
                 // Start foreground service for API
                 ApiForegroundService.start(this);
                 
-                Log.i(TAG, "✅ REST API foreground service started");
-                Log.i(TAG, "📡 API URL: http://localhost:" + apiManager.getApiPort());
-                Log.i(TAG, "🔐 Authentication: HTTP Basic Auth (admin/admin)");
-                Log.i(TAG, "💡 Tip: Keep app in foreground or disable battery optimization");
+                logUtils.i(TAG, "✅ REST API foreground service started");
+                logUtils.i(TAG, "📡 API URL: http://localhost:" + apiManager.getApiPort());
+                logUtils.i(TAG, "🔐 Authentication: HTTP Basic Auth (admin/admin)");
+                logUtils.i(TAG, "💡 Tip: Keep app in foreground or disable battery optimization");
+                
+                // Show success toast
+                Toast.makeText(this, 
+                    "REST API 已启动\n访问：http://localhost:" + apiManager.getApiPort(), 
+                    Toast.LENGTH_LONG).show();
+                
+                // Mark as not first launch anymore
+                setFirstLaunchCompleted();
+                
             } else {
-                Log.i(TAG, "ℹ️ REST API is disabled (enable in settings)");
+                logUtils.i(TAG, "ℹ️ REST API is disabled (enable in settings)");
             }
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to initialize REST API service", e);
+            logUtils.e(TAG, "❌ Failed to initialize REST API service", e);
         }
         
-        Log.i(TAG, "JoyMan Application initialized successfully");
+        logUtils.i(TAG, "JoyMan Application initialized successfully");
     }
     
     @Override
     public void onTerminate() {
         super.onTerminate();
         
-        Log.i(TAG, "onTerminate: Stopping services...");
+        logUtils.i(TAG, "onTerminate: Stopping services...");
         
         // Stop foreground service
         ApiForegroundService.stop(this);
-        Log.i(TAG, "✅ REST API foreground service stopped");
+        logUtils.i(TAG, "✅ REST API foreground service stopped");
         
-        Log.i(TAG, "JoyMan Application terminated");
+        logUtils.i(TAG, "JoyMan Application terminated");
+    }
+    
+    /**
+     * Check if this is the first launch with API feature
+     */
+    private boolean isFirstLaunchWithApi() {
+        SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_FIRST_LAUNCH, true);
+    }
+    
+    /**
+     * Mark first launch as completed
+     */
+    private void setFirstLaunchCompleted() {
+        SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply();
+        logUtils.d(TAG, "First launch marked as completed");
     }
 }
