@@ -7,6 +7,7 @@ import androidx.room.Index;
 import java.util.ArrayList;
 import java.util.List;
 
+
 /**
  * Task 任务实体类
  * 
@@ -14,13 +15,14 @@ import java.util.List;
  * 用于存储单个任务的完整信息
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.3
+ * @version 2.0.4
  * @since 2026-03-31
  */
 @Entity(
     tableName = "tasks",
     indices = {
-        @Index(value = {"project_id"})
+        @Index(value = {"project_id"}),
+        @Index(value = {"parent_id"})
     }
 )
 public class Task {
@@ -94,6 +96,12 @@ public class Task {
      */
     @ColumnInfo(name = "project_id", defaultValue = "NULL")
     private Long projectId;
+    
+    /**
+     * 父任务 ID（可选，用于子任务）
+     */
+    @ColumnInfo(name = "parent_id", defaultValue = "NULL")
+    private Long parentId;
     
     /**
      * 创建时间（毫秒级时间戳）
@@ -181,6 +189,12 @@ public class Task {
         this.updatedAt = System.currentTimeMillis();
     }
     
+    public Long getParentId() { return parentId; }
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+        this.updatedAt = System.currentTimeMillis();
+    }
+    
     public long getCreatedAt() { return createdAt; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     
@@ -208,6 +222,11 @@ public class Task {
         if (dueDate == null) return false;
         return !isDone() && !isCancelled() && System.currentTimeMillis() > dueDate;
     }
+    
+    /**
+     * 判断是否为子任务
+     */
+    public boolean isSubtask() { return parentId != null; }
     
     /**
      * 获取状态的中文显示文本
@@ -307,6 +326,7 @@ public class Task {
                 ", status=" + getStatusText() +
                 ", priority=" + getPriorityText() +
                 ", projectId=" + projectId +
+                ", parentId=" + parentId +
                 '}';
     }
 }

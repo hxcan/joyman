@@ -12,11 +12,12 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
 
 import java.util.List;
 
+
 /**
  * Task 数据访问对象（DAO）
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.1
+ * @version 2.0.2
  * @since 2026-03-31
  */
 @Dao
@@ -57,4 +58,36 @@ public interface TaskDao {
     
     @Query("SELECT COUNT(*) FROM tasks")
     int getTaskCount();
+    
+    /**
+     * 获取指定父任务的所有子任务
+     * @param parentId 父任务 ID
+     * @return 子任务列表
+     */
+    @Query("SELECT * FROM tasks WHERE parent_id = :parentId ORDER BY created_at ASC")
+    LiveData<List<Task>> getSubtasksByParentIdLive(long parentId);
+    
+    /**
+     * 获取指定父任务的所有子任务（同步版本）
+     * @param parentId 父任务 ID
+     * @return 子任务列表
+     */
+    @Query("SELECT * FROM tasks WHERE parent_id = :parentId ORDER BY created_at ASC")
+    List<Task> getSubtasksByParentId(long parentId);
+    
+    /**
+     * 判断任务是否有子任务
+     * @param parentId 父任务 ID
+     * @return true 如果有子任务
+     */
+    @Query("SELECT EXISTS(SELECT 1 FROM tasks WHERE parent_id = :parentId LIMIT 1)")
+    boolean hasSubtasks(long parentId);
+    
+    /**
+     * 统计子任务数量
+     * @param parentId 父任务 ID
+     * @return 子任务数量
+     */
+    @Query("SELECT COUNT(*) FROM tasks WHERE parent_id = :parentId")
+    int countSubtasks(long parentId);
 }

@@ -376,14 +376,13 @@ public class TaskDetailActivity extends AppCompatActivity {
                     // 创建子任务
                     long subtaskId = taskViewModel.createTask(title);
                     
-                    // 设置项目
-                    if (projectId != null) {
-                        Task subtask = new Task(subtaskId, title);
-                        subtask.setProjectId(projectId);
-                        taskViewModel.update(subtask);
-                    }
+                    // 设置项目和父任务 ID
+                    Task subtask = new Task(subtaskId, title);
+                    subtask.setProjectId(projectId);
+                    subtask.setParentId(taskId); // 设置父任务 ID
+                    taskViewModel.update(subtask);
                     
-                    // TODO: 设置父子关系（需要数据库支持）
+                    LogUtils.getInstance().i(TAG, "Subtask created: ID=" + subtaskId + ", parentId=" + taskId + ", title=" + title);
                     
                     Toast.makeText(this, "子任务已创建", Toast.LENGTH_SHORT).show();
                 } else {
