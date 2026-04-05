@@ -19,9 +19,12 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
+import com.stupidbeauty.joyman.ui.adapter.SubtaskAdapter;
 import com.stupidbeauty.joyman.util.LogUtils;
 import com.stupidbeauty.joyman.viewmodel.ProjectViewModel;
 import com.stupidbeauty.joyman.viewmodel.TaskViewModel;
@@ -38,10 +41,10 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.11
+ * @version 1.0.12
  * @since 2026-04-01
  */
-public class TaskDetailActivity extends AppCompatActivity {
+public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdapter.OnSubtaskClickListener {
     
     public static final String EXTRA_TASK_ID = "task_id";
     private static final String TAG = "TaskDetailActivity";
@@ -62,6 +65,12 @@ public class TaskDetailActivity extends AppCompatActivity {
     private Spinner spinnerStatus;
     private View btnSaveChanges;
     private View btnCreateSubtask;
+    
+    // 子任务列表相关
+    private TextView textSubtasksTitle;
+    private RecyclerView recyclerViewSubtasks;
+    private TextView textNoSubtasks;
+    private SubtaskAdapter subtaskAdapter;
     
     private List<Project> projectList;
     private Long pendingProjectId;   // 暂存待保存的项目 ID
@@ -108,6 +117,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         initViews();
         loadTask();
         loadProjects();
+        loadSubtasks();
         
         LogUtils.getInstance().d(TAG, "onCreate: END");
         LogUtils.getInstance().d(TAG, "=================================================================");
@@ -145,6 +155,17 @@ public class TaskDetailActivity extends AppCompatActivity {
         spinnerStatus = findViewById(R.id.spinner_status);
         btnSaveChanges = findViewById(R.id.btn_save_changes);
         btnCreateSubtask = findViewById(R.id.btn_create_subtask);
+        
+        // 子任务列表相关视图
+        textSubtasksTitle = findViewById(R.id.text_subtasks_title);
+        recyclerViewSubtasks = findViewById(R.id.recycler_view_subtasks);
+        textNoSubtasks = findViewById(R.id.text_no_subtasks);
+        
+        // 初始化子任务列表
+        recyclerViewSubtasks.setLayoutManager(new LinearLayoutManager(this));
+        subtaskAdapter = new SubtaskAdapter(this);
+        subtaskAdapter.setOnSubtaskClickListener(this);
+        recyclerViewSubtasks.setAdapter(subtaskAdapter);
         
         // 设置复制按钮点击事件
         btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
@@ -391,6 +412,51 @@ public class TaskDetailActivity extends AppCompatActivity {
             })
             .setNegativeButton("取消", null)
             .show();
+    }
+    
+    /**
+     * 加载子任务列表
+     */
+    private void loadSubtasks() {
+        LogUtils.getInstance().d(TAG, "loadSubtasks: Loading subtasks for parent task ID: " + taskId);
+        
+        taskViewModel.getTaskDao().getSubtasksByParentIdLive(taskId).observe(this, subtasks -> {
+            LogUtils.getInstance().d(TAG, "loadSubtasks: Observer triggered, subtasks count: " + (subtasks != null ? subtasks.size() : 0));
+            updateSubtaskList(subtasks);
+        });
+    }
+    
+    /**
+     * 更新子任务列表显示
+     */
+    private void updateSubtaskList(List<Task> subtasks) {
+        if (subtasks == null || subtasks.isEmpty()) {
+            // 没有子任务
+            textSubtasksTitle.setVisibility(View.GONE);
+            recyclerViewSubtasks.setVisibility(View.GONE);
+            textNoSubtasks.setVisibility(View.VISIBLE);
+            subtaskAdapter.setSubtasks(new ArrayList<>());
+        } else {
+            // 有子任务
+            textSubtasksTitle.setVisibility(View.VISIBLE);
+            recyclerViewSubtasks.setVisibility(View.VISIBLE);
+            textNoSubtasks.setVisibility(View.GONE);
+            subtaskAdapter.setSubtasks(subtasks);
+            
+            LogUtils.getInstance().d(TAG, "updateSubtaskList: Displaying " + subtasks.size() + " subtasks");
+        }
+    }
+    
+    /**
+     * 点击子任务跳转到详情页
+     */
+    @Override
+    public void onSubtaskClick(Task subtask) {
+        LogUtils.getInstance().d(TAG, "onSubtaskClick: Subtask clicked, ID: " + subtask.getId());
+        
+        Intent intent = new Intent(this, TaskDetailActivity.class);
+        intent.putExtra(TaskDetailActivity.EXTRA_TASK_ID, subtask.getId());
+        startActivity(intent);
     }
     
     private void loadTask() {
