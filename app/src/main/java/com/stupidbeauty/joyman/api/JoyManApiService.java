@@ -2,6 +2,7 @@ package com.stupidbeauty.joyman.api;
 
 import android.app.Application;
 import android.content.Context;
+import android.util.Base64;
 import android.util.Log;
 
 import com.google.gson.JsonObject;
@@ -257,10 +258,9 @@ public class JoyManApiService extends NanoHTTPD {
     
     private boolean authenticateBasic(String base64Credentials) {
         try {
-            String credentials = new String(
-                java.util.Base64.getDecoder().decode(base64Credentials), 
-                "UTF-8"
-            );
+            // 使用 android.util.Base64 替代 java.util.Base64（支持 API 8+）
+            byte[] decodedBytes = Base64.decode(base64Credentials, Base64.DEFAULT);
+            String credentials = new String(decodedBytes, "UTF-8");
             
             final int index = credentials.indexOf(':');
             if (index <= 0) {
