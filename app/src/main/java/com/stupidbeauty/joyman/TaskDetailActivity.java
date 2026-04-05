@@ -21,7 +21,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.LogUtils;
-import com.stupidbeauty.joyman.viewmodel.ProjectViewModel;
+import com.stupidbeauty.joyman.viewModel.ProjectViewModel;
 import com.stupidbeauty.joyman.viewmodel.TaskViewModel;
 
 import java.text.SimpleDateFormat;
@@ -34,8 +34,8 @@ import java.util.Locale;
 /**
  * ä»»åŠ¡è¯¦æƒ…ç•Œé¢
  * 
- * @author å¤ªæç¾æœ¯å·¥ç¨‹ç‹®ç‹®é•¿
- * @version 1.0.11
+ * @author å¤ªæç¾æœ¯å…¥ç¨‹ç©ºç”Ÿ
+ * @version 1.0.12
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity {
@@ -60,10 +60,9 @@ public class TaskDetailActivity extends AppCompatActivity {
     private View btnSaveChanges;
     
     private List<Project> projectList;
-    private Long pendingProjectId;   // æš‚å­˜å¾…ä¿å­˜çš„é¡¹ç›® ID
-    private Integer pendingStatusId; // æš‚å­˜å¾…ä¿å­˜çš„çŠ¶æ€ ID
+    private Long pendingProjectId;
+    private Integer pendingStatusId;
     
-    // çŠ¶æ€åˆ—è¡¨æ•°æ®
     private int[] statusIds;
     private String[] statusNames;
     private int[] statusColors;
@@ -71,50 +70,30 @@ public class TaskDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        LogUtils.getInstance().d(TAG, "=================================================================");
-        LogUtils.getInstance().d(TAG, "onCreate: START - Activity created");
-        LogUtils.getInstance().d(TAG, "onCreate: Task ID from intent: " + getIntent().getLongExtra(EXTRA_TASK_ID, 0));
-        LogUtils.getInstance().d(TAG, "onCreate: Activity hash code: " + this.hashCode());
-        
         setContentView(R.layout.activity_task_detail);
-        
         setSupportActionBar(findViewById(R.id.toolbar));
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle("ä»»åŠ¡è¯¦æƒ…");
+            getSupportActionBar().setTitle("ä»»åŠ¡è¯¦æƒ¢");
         }
         
         taskId = getIntent().getLongExtra(EXTRA_TASK_ID, 0);
         if (taskId == 0) {
-            LogUtils.getInstance().e(TAG, "onCreate: Invalid task ID!");
             Toast.makeText(this, "æ— æ•ˆçš„ä»»åŠ¡ ID", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
         
-        LogUtils.getInstance().d(TAG, "onCreate: Getting ViewModels");
         taskViewModel = new ViewModelProvider(this).get(TaskViewModel.class);
         projectViewModel = new ViewModelProvider(this).get(ProjectViewModel.class);
-        LogUtils.getInstance().d(TAG, "onCreate: TaskViewModel hash code: " + taskViewModel.hashCode());
-        LogUtils.getInstance().d(TAG, "onCreate: ProjectViewModel hash code: " + projectViewModel.hashCode());
         
-        // åˆå§‹åŒ–çŠ¶æ€æ•°æ®
         initStatusData();
-        
         initViews();
         loadTask();
         loadProjects();
-        
-        LogUtils.getInstance().d(TAG, "onCreate: END");
-        LogUtils.getInstance().d(TAG, "=================================================================");
     }
     
-    /**
-     * åˆå§‹åŒ–çŠ¶æ€æ•°æ®ï¼ˆIDã€åç§°ã€é¢œè‰²ï¼‰
-     */
     private void initStatusData() {
-        LogUtils.getInstance().d(TAG, "initStatusData: Initializing status data");
-        
         statusIds = Task.getDefaultStatusIds();
         statusNames = Task.getDefaultStatusNames();
         statusColors = new int[]{
@@ -124,12 +103,9 @@ public class TaskDetailActivity extends AppCompatActivity {
             ContextCompat.getColor(this, R.color.status_feedback),
             ContextCompat.getColor(this, R.color.status_closed)
         };
-        
-        LogUtils.getInstance().d(TAG, "initStatusData: Status data initialized, count: " + statusIds.length);
     }
     
     private void initViews() {
-        LogUtils.getInstance().d(TAG, "initViews: Initializing views");
         textTitle = findViewById(R.id.text_detail_title);
         textDescription = findViewById(R.id.text_detail_description);
         textStatus = findViewById(R.id.text_detail_status);
@@ -141,19 +117,12 @@ public class TaskDetailActivity extends AppCompatActivity {
         spinnerStatus = findViewById(R.id.spinner_status);
         btnSaveChanges = findViewById(R.id.btn_save_changes);
         
-        // è®¾ç½®å¤åˆ¶æŒ‰é’®ç‚¹å‡»äº‹ä»¶
         btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
         
-        // åˆå§‹åŒ–çŠ¶æ€ä¸‹æ‹‰æ¡†
-        ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(
-            this,
-            android.R.layout.simple_spinner_item,
-            statusNames
-        );
+        ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, statusNames);
         statusAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerStatus.setAdapter(statusAdapter);
         
-        // çŠ¶æ€å˜æ›´ç›‘å¬ - ä»…æš‚å­˜ï¼Œä¸ä¿å­˜
         spinnerStatus.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -161,21 +130,17 @@ public class TaskDetailActivity extends AppCompatActivity {
                     int selectedStatusId = statusIds[position];
                     if (selectedStatusId != task.getStatus()) {
                         pendingStatusId = selectedStatusId;
-                        LogUtils.getInstance().d(TAG, "onItemSelected: Status changed to " + selectedStatusId + " (pending save)");
                     } else {
                         pendingStatusId = null;
                     }
                     updateSaveButtonState();
                 }
             }
-            
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-                // Do nothing
             }
         });
         
-        // é¡¹ç›®å˜æ›´ç›‘å¬ - ä»…æš‚å­˜ï¼Œä¸ä¿å­˜
         spinnerProject.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -192,31 +157,21 @@ public class TaskDetailActivity extends AppCompatActivity {
                             pendingProjectId = null;
                         } else {
                             pendingProjectId = selectedProjectId;
-                            LogUtils.getInstance().d(TAG, "onItemSelected: Project changed to " + selectedProjectId + " (pending save)");
                         }
                         updateSaveButtonState();
                     }
                 }
             }
-            
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-                // Do nothing
             }
         });
         
-        // ç»Ÿä¸€ä¿å­˜æŒ‰é’®
         btnSaveChanges.setOnClickListener(v -> saveAllChanges());
-        
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
-        
-        LogUtils.getInstance().d(TAG, "initViews: Views initialized and listeners set");
     }
     
-    /**
-     * æ›´æ–°ä¿å­˜æŒ‰é’®çš„å¯ç”¨çŠ¶æ€
-     */
     private void updateSaveButtonState() {
         boolean hasChanges = (pendingStatusId != null || pendingProjectId != null);
         btnSaveChanges.setEnabled(hasChanges);
@@ -225,43 +180,36 @@ public class TaskDetailActivity extends AppCompatActivity {
         if (hasChanges) {
             StringBuilder hint = new StringBuilder("ä¿å­˜æ›´æ”¹ï¼š");
             List<String> changes = new ArrayList<>();
-            if (pendingStatusId != null) {
-                changes.add("çŠ¶æ€");
-            }
-            if (pendingProjectId != null) {
-                changes.add("é¡¹ç›®");
-            }
-            hint.append(String.join(",", changes));
+            if (pendingStatusId != null) changes.add(çŠ¶æ€");
+            if (pendingProjectId != null) changes.add("é¡¹ç›®");
+            hint.append(String.join("ï¼Œ ", changes));
             ((TextView) btnSaveChanges).setText(hint.toString());
         } else {
             ((TextView) btnSaveChanges).setText("ä¿å­˜æ›´æ”¹");
         }
-        
-        LogUtils.getInstance().d(TAG, "updateSaveButtonState: enabled=" + hasChanges);
     }
     
     /**
-     * å¤åˆ¶ä»»åŠ¡æ ‡é¢˜åˆ°å‰ªè´´æ¿ï¼ˆåŒ…å«é¡¹ç›®åç§°ï¼‰
+     * é¤åˆ¶ä»»åŠ¡æ ‡é¢œåˆ°å‰ªè°æ¿æˆ‘é€š
      */
     private void copyTitleToClipboard() {
         if (task == null) {
-            LogUtils.getInstance().w(TAG, "copyTitleToClipboard: Task is null");
-            Toast.makeText(this, "ä»»åŠ¡æ•°æ®æœªåŠ è½½", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "ä»»åŠ¡æ•°æ®æšªåŠ è½½", Toast.LENGTH_SHORT).show();
             return;
         }
         
         String title = task.getTitle();
         if (title == null || title.isEmpty()) {
-            LogUtils.getInstance().w(TAG, "copyTitleToClipboard: Task title is empty");
             Toast.makeText(this, "ä»»åŠ¡æ ‡é¢˜ä¸ºç©º", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        // æ„å»ºå¤åˆ¶å†…å®¹ï¼š[é¡¹ç›®å] ä»»åŠ¡æ ‡é¢˜
+        // å»ºäººæ–¹å°‘é¡¹ç›® è¾“æŸ] ä»»åŠ¡
         String copyContent = title;
         if (task.getProjectId() != null && projectList != null) {
+            long targetProjectId = task.getProjectId();
             for (Project p : projectList) {
-                if (p != null && p.getId().equals(task.getProjectId())) {
+                if (p != null && p.getId() == targetProjectId) {
                     copyContent = "[" + p.getName() + "] " + title;
                     break;
                 }
@@ -270,17 +218,14 @@ public class TaskDetailActivity extends AppCompatActivity {
         
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) {
-            LogUtils.getInstance().e(TAG, "copyTitleToClipboard: ClipboardManager is null");
-            Toast.makeText(this, "æ— æ³•è®¿é—®å‰ªè´´æ¿", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "æ— æ³•è¯¯æ•°æ‹–äºº", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        ClipData clip = ClipData.newPlainText("JoyMan ä»»åŠ¡æ ‡é¢˜", copyContent);
+        ClipData clip = ClipData.newPlainText("JoyMan ä»»åŠ¡æ ‡é¢œ", copyContent);
         clipboard.setPrimaryClip(clip);
         
-        LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Title copied successfully: " + copyContent);
-        
-        String toastMessage = "å·²å¤åˆ¶ï¼š" + copyContent;
+        String toastMessage = "å·²ä¿:" + copyContent;
         if (toastMessage.length() > 50) {
             toastMessage = toastMessage.substring(0, 47) + "...";
         }
@@ -288,35 +233,23 @@ public class TaskDetailActivity extends AppCompatActivity {
     }
     
     private void loadTask() {
-        LogUtils.getInstance().d(TAG, "loadTask: Loading task ID: " + taskId);
         taskViewModel.getTaskById(taskId).observe(this, task -> {
-            LogUtils.getInstance().d(TAG, "loadTask: Observer triggered, task is null: " + (task == null));
             if (task == null) {
-                LogUtils.getInstance().e(TAG, "loadTask: Task not found!");
-                Toast.makeText(this, "ä»»åŠ¡ä¸å­˜åœ¨", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this,"ä»»åŠ¡ä¸å®˜", Toast.LENGTH_SHORT).show();
                 finish();
                 return;
             }
-            
             this.task = task;
             pendingStatusId = null;
             pendingProjectId = null;
-            LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus());
             updateUI();
             updateSaveButtonState();
         });
     }
     
     private void loadProjects() {
-        LogUtils.getInstance().d(TAG, "loadProjects: START - Loading projects for spinner");
-        
         projectViewModel.getAllProjects().observe(this, projects -> {
-            LogUtils.getInstance().d(TAG, "loadProjects: Observer triggered, projects is null: " + (projects == null));
-            
-            if (isDestroyed()) {
-                LogUtils.getInstance().w(TAG, "loadProjects: Activity already destroyed, skipping update");
-                return;
-            }
+            if (isDestroyed()) return;
             
             projectList = new ArrayList<>();
             List<String> projectNames = new ArrayList<>();
@@ -329,53 +262,33 @@ public class TaskDetailActivity extends AppCompatActivity {
                     projectList.add(project);
                     projectNames.add(project.getIconDisplay() + " " + project.getName());
                 }
-                LogUtils.getInstance().d(TAG, "loadProjects: Added " + projects.size() + " projects");
             }
             
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                projectNames
-            );
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, projectNames);
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             spinnerProject.setAdapter(adapter);
-            
-            LogUtils.getInstance().d(TAG, "loadProjects: END");
         });
     }
     
-    /**
-     * ä¿å­˜æ‰€æœ‰å¾…å¤„ç†çš„å˜æ›´ï¼ˆçŠ¶æ€ + é¡¹ç›®ï¼‰
-     */
     private void saveAllChanges() {
-        LogUtils.getInstance().d(TAG, "=================================================================");
-        LogUtils.getInstance().d(TAG, "saveAllChanges: START");
-        
         if (task == null) {
-            LogUtils.getInstance().w(TAG, "saveAllChanges: Task is null");
-            Toast.makeText(this, "ä»»åŠ¡æ•°æ®æœªåŠ è½½", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "ä»»åŠ¡æ•°æ®æšªåŠ è½½", Toast.LENGTH_SHORT).show();
             return;
         }
         
         boolean hasChanges = false;
         List<String> savedItems = new ArrayList<>();
         
-        // ä¿å­˜çŠ¶æ€å˜æ›´
         if (pendingStatusId != null) {
-            LogUtils.getInstance().i(TAG, "saveAllChanges: Saving status: " + pendingStatusId);
             task.setStatus(pendingStatusId);
-            String statusName = Task.getStatusNameById(pendingStatusId);
-            savedItems.add("çŠ¶æ€ï¼š" + statusName);
+            savedItems.add("çŠ¶æ€ï¼š" + Task.getStatusNameById(pendingStatusId));
             pendingStatusId = null;
             hasChanges = true;
         }
         
-        // ä¿å­˜é¡¹ç›®å˜æ›´
         if (pendingProjectId != null) {
-            LogUtils.getInstance().i(TAG, "saveAllChanges: Saving project: " + pendingProjectId);
             task.setProjectId(pendingProjectId);
-            
-            String projectName = "æœªçŸ¥";
+            String projectName = "æœªçŸ§";
             if (projectList != null) {
                 for (Project p : projectList) {
                     if (p != null && p.getId() == pendingProjectId) {
@@ -390,30 +303,18 @@ public class TaskDetailActivity extends AppCompatActivity {
         }
         
         if (!hasChanges) {
-            LogUtils.getInstance().d(TAG, "saveAllChanges: No changes detected");
-            Toast.makeText(this, "æ²¡æœ‰éœ€è¦ä¿å­˜çš„æ›´æ”¹", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "æ²¡æœ‰éœ€è¦¹åœ°éƒ¸æ¡†", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        // æ‰§è¡Œä¿å­˜
         taskViewModel.update(task);
-        
-        String message = "å·²ä¿å­˜ï¼š" + String.join(",", savedItems);
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-        
+        Toast.makeText(this, "å·²ä¿å­˜ï¼š" + String.join(",", savedItems), Toast.LENGTH_SHORT).show();
         updateUI();
         updateSaveButtonState();
-        
-        LogUtils.getInstance().d(TAG, "saveAllChanges: END - Saved: " + String.join(", ", savedItems));
-        LogUtils.getInstance().d(TAG, "=================================================================");
     }
     
     private void updateUI() {
-        LogUtils.getInstance().d(TAG, "updateUI: START - Updating UI");
-        if (task == null) {
-            LogUtils.getInstance().w(TAG, "updateUI: Task is null, skipping update");
-            return;
-        }
+        if (task == null) return;
         
         textTitle.setText(task.getTitle());
         
@@ -436,7 +337,6 @@ public class TaskDetailActivity extends AppCompatActivity {
                         if (p.getId() == projectId) {
                             textProject.setText("æ‰€å±é¡¹ç›®ï¼š" + p.getIconDisplay() + " " + p.getName());
                             found = true;
-                            
                             if (projectList != null) {
                                 for (int i = 0; i < projectList.size(); i++) {
                                     Project sp = projectList.get(i);
@@ -450,32 +350,24 @@ public class TaskDetailActivity extends AppCompatActivity {
                         }
                     }
                 }
-                
                 if (!found) {
-                    textProject.setText("æ‰€å±é¡¹ç›®ï¼šæœªçŸ¥é¡¹ç›® (ID: " + projectId + ")");
+                    textProject.setText("æ‰€å±é¡¹ç›®ï¼šæœ¦çŸ¥é¡¹ç›® (ID: " + projectId + ")");
                 }
             });
         } else {
-            textProject.setText("æ‰€å±é¡¹ç›®ï¼šæ— ");
-            if (projectList != null) {
-                spinnerProject.setSelection(0);
-            }
+            textProject.setText("æ‰€å±é¡¹ç›®ï¼šæœ¬");
+            if (projectList != null) spinnerProject.setSelection(0);
         }
         
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
         textCreatedAt.setText("åˆ›å»ºæ—¶é—´ï¼š" + sdf.format(new Date(task.getCreatedAt())));
-        
         updateStatusSpinnerSelection();
-        
-        LogUtils.getInstance().d(TAG, "updateUI: END - UI updated");
     }
     
     private void updateStatusUI() {
         if (task == null) return;
-        
         String statusText = task.getStatusText();
         textStatus.setText(statusText);
-        
         int colorIndex = task.getStatus() - Task.STATUS_NEW;
         if (colorIndex >= 0 && colorIndex < statusColors.length) {
             textStatus.setTextColor(statusColors[colorIndex]);
@@ -486,7 +378,6 @@ public class TaskDetailActivity extends AppCompatActivity {
     
     private void updateStatusSpinnerSelection() {
         if (task == null) return;
-        
         int currentStatusId = task.getStatus();
         for (int i = 0; i < statusIds.length; i++) {
             if (statusIds[i] == currentStatusId) {
@@ -497,82 +388,5 @@ public class TaskDetailActivity extends AppCompatActivity {
     }
     
     private void showMoveProjectDialog() {
-        LogUtils.getInstance().d(TAG, "showMoveProjectDialog: Showing dialog");
         if (projectList == null) {
-            Toast.makeText(this, "é¡¹ç›®åˆ—è¡¨åŠ è½½ä¸­...", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        String[] projectNames = new String[projectList.size()];
-        for (int i = 0; i < projectList.size(); i++) {
-            Project p = projectList.get(i);
-            projectNames[i] = (p == null) ? "æ— é¡¹ç›®" : (p.getIconDisplay() + " " + p.getName());
-        }
-        
-        int currentIndex = 0;
-        if (task != null && task.getProjectId() != null) {
-            for (int i = 0; i < projectList.size(); i++) {
-                Project p = projectList.get(i);
-                if (p != null && p.getId() == task.getProjectId()) {
-                    currentIndex = i;
-                    break;
-                }
-            }
-        }
-        
-        new AlertDialog.Builder(this)
-            .setTitle("ç§»åŠ¨åˆ°é¡¹ç›®")
-            .setSingleChoiceItems(projectNames, currentIndex, (dialog, which) -> {
-                Project selectedProject = projectList.get(which);
-                Long selectedProjectId = (selectedProject == null) ? null : selectedProject.getId();
-                
-                if (task != null) {
-                    Long currentProjectId = task.getProjectId();
-                    boolean isNullBoth = (currentProjectId == null && selectedProjectId == null);
-                    boolean isSameValue = (currentProjectId != null && selectedProjectId != null && currentProjectId.equals(selectedProjectId));
-                    
-                    if (isNullBoth || isSameValue) {
-                        pendingProjectId = null;
-                    } else {
-                        pendingProjectId = selectedProjectId;
-                    }
-                    updateSaveButtonState();
-                }
-                
-                dialog.dismiss();
-            })
-            .setNegativeButton("å–æ¶ˆ", null)
-            .show();
-    }
-    
-    private void showDeleteConfirm() {
-        if (task == null) return;
-        
-        new AlertDialog.Builder(this)
-            .setTitle("åˆ é™¤ä»»åŠ¡")
-            .setMessage("ç¡®å®šè¦åˆ é™¤ä»»åŠ¡ \"" + task.getTitle() + "\" å—ï¼Ÿ")
-            .setPositiveButton("åˆ é™¤", (dialog, which) -> {
-                taskViewModel.deleteById(taskId);
-                Toast.makeText(this, "ä»»åŠ¡å·²åˆ é™¤", Toast.LENGTH_SHORT).show();
-                finish();
-            })
-            .setNegativeButton("å–æ¶ˆ", null)
-            .show();
-    }
-    
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-    
-    @Override
-    protected void onDestroy() {
-        LogUtils.getInstance().d(TAG, "onDestroy: START");
-        super.onDestroy();
-        LogUtils.getInstance().d(TAG, "onDestroy: END");
-    }
-}
+            Toast.makeText(this, "é¡¹ç›¢y¥è:hnyæî9¬îK‹¢âââ"ÂFö7BäÄTäuD…õ4„õ%B’ç6†÷r‚“°¢&WGW&ã°¢Ğ¢ ¢7G&–æuµÒ&ö¦V7DæÖW2ÒæWr7G&–æu·&ö¦V7DÆ—7Bç6—¦R‚•Ó°¢f÷"†–çB’Ò²’Â&ö¦V7DÆ—7Bç6—¦R‚“²’²²’°¢&ö¦V7BÒ&ö¦V7DÆ—7BævWB†’“°¢&ö¦V7DæÖW5¶•ÒÒ‡ÓÒçVÆÂ’ò.izšyºâ"¢‡ævWD–6öäF—7Æ’‚’²""²ævWDæÖR‚’“°¢Ğ¢ ¢–çB7W'&VçD–æFW‚Ò°¢–b‡F6²ÒçVÆÂbbF6²ævWE&ö¦V7D–B‚’ÒçVÆÂ’°¢f÷"†–çB’Ò²’Â&ö¦V7DÆ—7Bç6—¦R‚“²’²²’°¢&ö¦V7BÒ&ö¦V7DÆ—7BævWB†’“°¢–b‡ÒçVÆÂbbævWD–B‚’ÓÒF6²ævWE&ö¦V7D–B‚’’°¢7W'&VçD–æFW‚Ò“°¢'&V³°¢Ğ¢Ğ¢Ğ¢ ¢æWrÆW'DF–Æörä'V–ÆFW"‡F†—2¢ç6WEF—FÆR‚.k{¾XªX«šyºâ"¢ç6WE6–ævÆT6†ö–6T—FV×2‡&ö¦V7DæÖW2Â7W'&VçD–æFW‚Â†F–ÆörÂv†–6‚’Óâ°¢&ö¦V7B6VÆV7FVE&ö¦V7BÒ&ö¦V7DÆ—7BævWB‡v†–6‚“°¢Æöær6VÆV7FVE&ö¦V7D–BÒ‡6VÆV7FVE&ö¦V7BÓÒçVÆÂ’òçVÆÂ¢6VÆV7FVE&ö¦V7BævWD–B‚“°¢ ¢–b‡F6²ÒçVÆÂ’°¢Æöær7W'&VçE&ö¦V7D–BÒF6²ævWE&ö¦V7D–B‚“°¢&ööÆVâ—4çVÆÄ&÷F‚Ò†7W'&VçE&ö¦V7D–BÓÒçVÆÂbb6VÆV7FVE&ö¦V7D–BÓÒçVÆÂ“°¢&ööÆVâ—56ÖUfÇVRÒ†7W'&VçE&ö¦V7D–BÒçVÆÂbb6VÆV7FVE&ö¦V7D–BÒçVÆÂbb7W'&VçE&ö¦V7D–BæWVÇ2‡6VÆV7FVE&ö¦V7D–B’“°¢ ¢–b†—4çVÆÄ&÷F‚ÇÂ—56ÖUfÇVR’°¢VæF–æu&ö¦V7D–BÒçVÆÃ°¢ÒVÇ6R°¢VæF–æu&ö¦V7D–BÒ6VÆV7FVE&ö¦V7D–C°¢Ğ¢WFFU6fT'WGFöå7FFR‚“°¢Ğ¢F–ÆöræF—6Ö—72‚“°¢Ò¢ç6WDæVvF—fT'WGFöâ‚.ûÈÎkh‚"ÂçVÆÂ¢ç6†÷r‚“°¢Ğ¢ ¢&—fFRfö–B6†÷tFVÆWFT6öæf—&Ò‚’°¢–b‡F6²ÓÒçVÆÂ’&WGW&ã°¢æWrÆW'DF–Æörä'V–ÆFW"‡F†—2¢ç6WEF—FÆR‚.XŠ™šNK»¾Xª"¢ç6WDÖW76vR‚.jîZé®ŠhXŠ™šNK»¾XªÂ""²F6²ævWEF—FÆR‚’²%Â"Y	~ûÉò"¢ç6WE÷6—F—fT'WGFöâ‚.XŠ™šB"Â†F–ÆörÂv†–6‚’Óâ°¢F6µf–WtÖöFVÂæFVÆWFT'”–B‡F6´–B“°¢Fö7BæÖ¶UFW‡B‡F†—2Â.K»¾Xª[{.XŠ™šB"ÂFö7BäÄTäuD…õ4„õ%B’ç6†÷r‚“°¢f–æ—6‚‚“°¢Ò¢ç6WDæVvF—fT'WGFöâ‚.ûÈÎkh‚"ÂçVÆÂ¢ç6†÷r‚“°¢Ğ¢ ¢÷fW'&–FP¢V&Æ–2&ööÆVâöä÷F–öç4—FVÕ6VÆV7FVB„ÖVçT—FVÒ—FVÒ’°¢–b†—FVÒævWD—FVÔ–B‚’ÓÒæG&ö–Bå"æ–Bæ†öÖR’°¢f–æ—6‚‚“°¢&WGW&âG'VS°¢Ğ¢&WGW&â7WW"æöä÷F–öç4—FVÕ6VÆV7FVB†—FVÒ“°¢Ğ¢ ¢÷fW'&–FP¢&÷FV7FVBfö–BöäFW7G&÷’‚’°¢7WW"æöäFW7G&÷’‚“°¢Ğ§Ğ 
