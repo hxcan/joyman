@@ -23,10 +23,10 @@ import fi.iki.elonen.NanoHTTPD;
  * JoyMan REST API 服务器
  * 
  * 实现与 Redmine 兼容的 REST API 接口
- * 使得可以使用现有的 Redmine 工具链操作 JoyMan
+ * 使用 HTTP Basic Auth 认证（用户名 + 密码）
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.2
+ * @version 1.0.3
  * @since 2026-04-05
  */
 public class JoyManApiService extends NanoHTTPD {
@@ -34,11 +34,18 @@ public class JoyManApiService extends NanoHTTPD {
     private static final String TAG = "JoyManApiService";
     private static final int DEFAULT_PORT = 8080;
     
+    // 默认管理员账号（可配置）
+    private static final String DEFAULT_ADMIN_USERNAME = "admin";
+    private static final String DEFAULT_ADMIN_PASSWORD = "admin";
+    
     private Context context;
     private LogUtils logUtils;
-    private ApiManager apiManager;
     private TaskRepository taskRepository;
     private ProjectRepository projectRepository;
+    
+    // 管理员账号（可从配置读取）
+    private String adminUsername;
+    private String adminPassword;
     
     /**
      * 构造函数
@@ -65,10 +72,25 @@ public class JoyManApiService extends NanoHTTPD {
     private void init(Context context) {
         this.context = context;
         this.logUtils = LogUtils.getInstance();
-        this.apiManager = ApiManager.getInstance(context);
         this.taskRepository = TaskRepository.getInstance(context);
         this.projectRepository = ProjectRepository.getInstance(context);
-        logUtils.d(TAG, "Constructor: JoyMan API server initialized");
+        
+        // 读取管理员账号（简化实现，后续可从 SharedPreferences 读取）
+        this.adminUsername = DEFAULT_ADMIN_USERNAME;
+        this.adminPassword = DEFAULT_ADMIN_PASSWORD;
+        
+        logUtils.i(TAG, "Constructor: JoyMan API server initialized");
+        logUtils.i(TAG, "Admin username: " + adminUsername);
+        logUtils.i(TAG, "⚠️ WARNING: Using default admin credentials. Change in production!");
+    }
+    
+    /**
+     * 设置管理员账号
+     */
+    public void setAdminCredentials(String username, String password) {
+        this.adminUsername = username;
+        this.adminPassword = password;
+        logUtils.i(TAG, "setAdminCredentials: Admin username updated to " + username);
     }
     
     @Override
@@ -90,7 +112,7 @@ public class JoyManApiService extends NanoHTTPD {
             if (!authenticate(session)) {
                 logUtils.w(TAG, "Authentication failed for " + uri);
                 return createCorsResponse(Response.Status.UNAUTHORIZED, "application/json", 
-                    "{\"error\":\"Invalid or missing API key\"}");
+                    "{\"error\":\"Invalid or missing credentials\"}");
             }
         }
         
@@ -102,7 +124,7 @@ public class JoyManApiService extends NanoHTTPD {
             response = handleProjects(session, method);
         } else if (uri.equals("/") || uri.equals("")) {
             response = createCorsResponse(Response.Status.OK, "application/json", 
-                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.2\",\"endpoints\":[\"/issues.json\",\"/projects.json\"]}");
+                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.3\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/projects.json\"]}");
         } else {
             response = createCorsResponse(Response.Status.NOT_FOUND, "text/plain", "Not Found");
             logUtils.w(TAG, "Unknown endpoint: " + uri);
@@ -112,36 +134,82 @@ public class JoyManApiService extends NanoHTTPD {
     }
     
     /**
-     * 认证中间件
+     * 认证中间件 - HTTP Basic Auth
+     * 支持两种认证方式：
+     * 1. HTTP Basic Auth (Authorization: Basic base64(username:password))
+     * 2. URL 参数 (username=xxx&password=yyy) - 仅用于测试
      */
     private boolean authenticate(IHTTPSession session) {
-        // 从 Header 获取 API Key
         Map<String, String> headers = session.getHeaders();
-        String apiKey = headers.get("x-redmine-api-key");
         
-        // 如果 Header 中没有，尝试从 URL 参数获取
-        if (apiKey == null || apiKey.isEmpty()) {
-            Map<String, String> params = new HashMap<>();
-            try {
-                session.parseUri(params);
-                apiKey = params.get("key");
-            } catch (IOException e) {
-                logUtils.e(TAG, "authenticate: Error parsing URI", e);
-            }
+        // 方式 1: HTTP Basic Auth Header
+        String authHeader = headers.get("authorization");
+        if (authHeader != null && authHeader.startsWith("Basic ")) {
+            return authenticateBasic(authHeader.substring(6));
         }
         
-        // 验证 API Key
-        if (apiKey == null || apiKey.isEmpty()) {
-            logUtils.w(TAG, "authenticate: No API key provided");
+        // 方式 2: URL 参数（仅用于调试，不推荐生产环境使用）
+        Map<String, String> params = new HashMap<>();
+        try {
+            session.parseUri(params);
+            String username = params.get("username");
+            String password = params.get("password");
+            
+            if (username != null && password != null) {
+                logUtils.w(TAG, "authenticate: URL parameters used (not recommended for production)");
+                return validateCredentials(username, password);
+            }
+        } catch (IOException e) {
+            logUtils.e(TAG, "authenticate: Error parsing URI", e);
+        }
+        
+        logUtils.w(TAG, "authenticate: No credentials provided");
+        return false;
+    }
+    
+    /**
+     * HTTP Basic Auth 认证
+     * @param base64Credentials Base64 编码的 "username:password"
+     */
+    private boolean authenticateBasic(String base64Credentials) {
+        try {
+            // 解码 Base64
+            String credentials = new String(
+                java.util.Base64.getDecoder().decode(base64Credentials), 
+                "UTF-8"
+            );
+            
+            // 分离用户名和密码
+            final int index = credentials.indexOf(':');
+            if (index <= 0) {
+                logUtils.w(TAG, "authenticateBasic: Invalid credentials format");
+                return false;
+            }
+            
+            String username = credentials.substring(0, index);
+            String password = credentials.substring(index + 1);
+            
+            logUtils.d(TAG, "authenticateBasic: User=" + username);
+            
+            // 验证用户名和密码
+            return validateCredentials(username, password);
+            
+        } catch (Exception e) {
+            logUtils.e(TAG, "authenticateBasic: Error decoding credentials", e);
             return false;
         }
-        
-        boolean isValid = apiManager.validateApiKey(apiKey);
+    }
+    
+    /**
+     * 验证用户名和密码
+     */
+    private boolean validateCredentials(String username, String password) {
+        boolean isValid = adminUsername.equals(username) && adminPassword.equals(password);
         
         if (isValid) {
-            logUtils.d(TAG, "authenticate: Success (key: " + apiKey.substring(0, 8) + "...)");
+            logUtils.d(TAG, "validateCredentials: Success for user " + username);
         } else {
-            logUtils.w(TAG, "authenticate: Invalid API key provided");
+            logUtils.w(TAG, "validateCredentials: Failed for user " + username);
         }
         
         return isValid;
@@ -177,7 +245,6 @@ public class JoyManApiService extends NanoHTTPD {
     
     /**
      * GET /issues.json - 获取任务列表
-     * 支持过滤、分页、排序
      */
     private Response getIssues(IHTTPSession session) {
         logUtils.d(TAG, "getIssues: Listing all issues");
@@ -237,7 +304,7 @@ public class JoyManApiService extends NanoHTTPD {
             })
             .collect(Collectors.toList());
         
-        // 排序（简化实现）
+        // 排序
         if ("updated_on:desc".equals(sort)) {
             filteredTasks.sort((a, b) -> Long.compare(b.getUpdatedAt(), a.getUpdatedAt()));
         } else if ("updated_on:asc".equals(sort)) {
@@ -306,15 +373,8 @@ public class JoyManApiService extends NanoHTTPD {
             
             logUtils.i(TAG, "createIssue: Created task " + taskId + ": " + newTask.getTitle());
             
-            // 获取完整的项目信息
-            Project project = null;
-            if (newTask.getProjectId() != null) {
-                // 简化处理，实际应该查询项目
-                project = null;
-            }
-            
             // 返回创建的任务
-            JsonObject issueJson = ApiJsonConverter.taskToIssueJson(newTask, project);
+            JsonObject issueJson = ApiJsonConverter.taskToIssueJson(newTask, null);
             JsonObject responseJson = new JsonObject();
             responseJson.add("issue", issueJson);
             
@@ -392,7 +452,7 @@ public class JoyManApiService extends NanoHTTPD {
         // CORS 头
         response.addHeader("Access-Control-Allow-Origin", "*");
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.addHeader("Access-Control-Allow-Headers", "Content-Type, X-Redmine-API-Key, Authorization");
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Redmine-API-Key");
         response.addHeader("Access-Control-Max-Age", "86400");
         
         return response;
@@ -405,6 +465,8 @@ public class JoyManApiService extends NanoHTTPD {
         try {
             start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
             logUtils.i(TAG, "startService: JoyMan API server started successfully");
+            logUtils.i(TAG, "Authentication: HTTP Basic Auth (username:password)");
+            logUtils.i(TAG, "Default credentials: " + adminUsername + " / " + adminPassword);
         } catch (IOException e) {
             logUtils.e(TAG, "startService: Failed to start API server", e);
         }
