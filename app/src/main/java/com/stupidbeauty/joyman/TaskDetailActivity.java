@@ -18,6 +18,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -42,7 +43,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.13
+ * @version 1.0.14
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdapter.OnSubtaskClickListener {
@@ -73,6 +74,10 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private RecyclerView recyclerViewSubtasks;
     private TextView textNoSubtasks;
     private SubtaskAdapter subtaskAdapter;
+    
+    // 父任务相关
+    private CardView cardParentTask;
+    private TextView textParentTaskTitle;
     
     private List<Project> projectList;
     private Long pendingProjectId;   // 暂存待保存的项目 ID
@@ -164,6 +169,10 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         recyclerViewSubtasks = findViewById(R.id.recycler_view_subtasks);
         textNoSubtasks = findViewById(R.id.text_no_subtasks);
         
+        // 父任务相关视图
+        cardParentTask = findViewById(R.id.card_parent_task);
+        textParentTaskTitle = findViewById(R.id.text_parent_task_title);
+        
         // 初始化子任务列表
         recyclerViewSubtasks.setLayoutManager(new LinearLayoutManager(this));
         subtaskAdapter = new SubtaskAdapter(this);
@@ -175,6 +184,15 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         
         // 设置创建子任务按钮点击事件
         btnCreateSubtask.setOnClickListener(v -> showCreateSubtaskDialog());
+        
+        // 设置父任务卡片点击事件
+        cardParentTask.setOnClickListener(v -> {
+            if (task != null && task.getParentId() != null) {
+                Intent intent = new Intent(this, TaskDetailActivity.class);
+                intent.putExtra(TaskDetailActivity.EXTRA_TASK_ID, task.getParentId());
+                startActivity(intent);
+            }
+        });
         
         // 初始化状态下拉框
         ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(
@@ -462,6 +480,29 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         startActivity(intent);
     }
     
+    /**
+     * 加载父任务信息
+     */
+    private void loadParentTask() {
+        if (task == null || task.getParentId() == null) {
+            cardParentTask.setVisibility(View.GONE);
+            return;
+        }
+        
+        LogUtils.getInstance().d(TAG, "loadParentTask: Loading parent task ID: " + task.getParentId());
+        
+        taskViewModel.getTaskById(task.getParentId()).observe(this, parentTask -> {
+            if (parentTask != null) {
+                textParentTaskTitle.setText(parentTask.getTitle());
+                cardParentTask.setVisibility(View.VISIBLE);
+                LogUtils.getInstance().d(TAG, "loadParentTask: Parent task loaded - " + parentTask.getTitle());
+            } else {
+                cardParentTask.setVisibility(View.GONE);
+                LogUtils.getInstance().w(TAG, "loadParentTask: Parent task not found");
+            }
+        });
+    }
+    
     private void loadTask() {
         LogUtils.getInstance().d(TAG, "loadTask: Loading task ID: " + taskId);
         taskViewModel.getTaskById(taskId).observe(this, task -> {
@@ -476,9 +517,10 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             this.task = task;
             pendingStatusId = null;
             pendingProjectId = null;
-            LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus());
+            LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus() + ", parentId: " + task.getParentId());
             updateUI();
             updateSaveButtonState();
+            loadParentTask();
         });
     }
     
