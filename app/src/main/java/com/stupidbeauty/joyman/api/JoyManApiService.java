@@ -386,56 +386,49 @@ public class JoyManApiService extends NanoHTTPD {
     private Response createIssue(IHTTPSession session) {
         logUtils.d(TAG, "createIssue: Creating new issue");
         
+        Map<String, String> files = new HashMap<>();
         try {
-            Map<String, String> files = new HashMap<>();
-            try {
-                session.parseBody(files);
-            } catch (ResponseException e) {
-                logUtils.e(TAG, "createIssue: Error parsing request body", e);
-                return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
-                    "{\"error\":\"Failed to parse request body\"}");
-            }
-            String postData = files.get("postData");
-            
-            if (postData == null || postData.isEmpty()) {
-                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
-                    "{\"error\":\"No data provided\"}");
-            }
-            
-            logUtils.d(TAG, "createIssue: Received data: " + postData);
-            
-            Task newTask = ApiJsonConverter.parseIssueJson(postData);
-            
-            if (newTask == null || newTask.getTitle() == null || newTask.getTitle().isEmpty()) {
-                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
-                    "{\"error\":\"Invalid issue data: subject is required\"}");
-            }
-            
-            long taskId = taskRepository.createTask(newTask.getTitle(), newTask.getDescription());
-            newTask.setId(taskId);
-            
-            if (newTask.getProjectId() != null) {
-                newTask.setProjectId(newTask.getProjectId());
-            }
-            if (newTask.getParentId() != null) {
-                newTask.setParentId(newTask.getParentId());
-            }
-            
-            taskRepository.update(newTask);
-            
-            logUtils.i(TAG, "createIssue: Created task " + taskId + ": " + newTask.getTitle());
-            
-            JsonObject issueJson = ApiJsonConverter.taskToIssueJson(newTask, null);
-            JsonObject responseJson = new JsonObject();
-            responseJson.add("issue", issueJson);
-            
-            return createCorsResponse(Response.Status.CREATED, "application/json", responseJson.toString());
-            
-        } catch (NumberFormatException e) {
-            logUtils.e(TAG, "createIssue: Invalid parameter format", e);
-            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
-                "{\"error\":\"Invalid parameter format\"}");
+            session.parseBody(files);
+        } catch (IOException | ResponseException e) {
+            logUtils.e(TAG, "createIssue: Error parsing request body", e);
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
+                "{\"error\":\"Failed to parse request body\"}");
         }
+        String postData = files.get("postData");
+        
+        if (postData == null || postData.isEmpty()) {
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
+                "{\"error\":\"No data provided\"}");
+        }
+        
+        logUtils.d(TAG, "createIssue: Received data: " + postData);
+        
+        Task newTask = ApiJsonConverter.parseIssueJson(postData);
+        
+        if (newTask == null || newTask.getTitle() == null || newTask.getTitle().isEmpty()) {
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
+                "{\"error\":\"Invalid issue data: subject is required\"}");
+        }
+        
+        long taskId = taskRepository.createTask(newTask.getTitle(), newTask.getDescription());
+        newTask.setId(taskId);
+        
+        if (newTask.getProjectId() != null) {
+            newTask.setProjectId(newTask.getProjectId());
+        }
+        if (newTask.getParentId() != null) {
+            newTask.setParentId(newTask.getParentId());
+        }
+        
+        taskRepository.update(newTask);
+        
+        logUtils.i(TAG, "createIssue: Created task " + taskId + ": " + newTask.getTitle());
+        
+        JsonObject issueJson = ApiJsonConverter.taskToIssueJson(newTask, null);
+        JsonObject responseJson = new JsonObject();
+        responseJson.add("issue", issueJson);
+        
+        return createCorsResponse(Response.Status.CREATED, "application/json", responseJson.toString());
     }
     
     private Response getProjects(IHTTPSession session) {
@@ -456,32 +449,25 @@ public class JoyManApiService extends NanoHTTPD {
     private Response createProject(IHTTPSession session) {
         logUtils.d(TAG, "createProject: Creating new project");
         
+        Map<String, String> files = new HashMap<>();
         try {
-            Map<String, String> files = new HashMap<>();
-            try {
-                session.parseBody(files);
-            } catch (ResponseException e) {
-                logUtils.e(TAG, "createProject: Error parsing request body", e);
-                return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
-                    "{\"error\":\"Failed to parse request body\"}");
-            }
-            String postData = files.get("postData");
-            
-            if (postData == null || postData.isEmpty()) {
-                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
-                    "{\"error\":\"No data provided\"}");
-            }
-            
-            logUtils.d(TAG, "createProject: Received data: " + postData);
-            
-            String jsonResponse = "{\"project\":{\"id\":0,\"message\":\"TODO: Implement project creation\"}}";
-            return createCorsResponse(Response.Status.CREATED, "application/json", jsonResponse);
-            
-        } catch (IOException e) {
-            logUtils.e(TAG, "createProject: Error reading request body", e);
+            session.parseBody(files);
+        } catch (IOException | ResponseException e) {
+            logUtils.e(TAG, "createProject: Error parsing request body", e);
             return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
-                "{\"error\":\"Internal server error\"}");
+                "{\"error\":\"Failed to parse request body\"}");
         }
+        String postData = files.get("postData");
+        
+        if (postData == null || postData.isEmpty()) {
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
+                "{\"error\":\"No data provided\"}");
+        }
+        
+        logUtils.d(TAG, "createProject: Received data: " + postData);
+        
+        String jsonResponse = "{\"project\":{\"id\":0,\"message\":\"TODO: Implement project creation\"}}";
+        return createCorsResponse(Response.Status.CREATED, "application/json", jsonResponse);
     }
     
     private Response createCorsResponse(Response.Status status, String mimeType, String message) {
