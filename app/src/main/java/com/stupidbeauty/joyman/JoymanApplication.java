@@ -59,13 +59,18 @@ public class JoymanApplication extends Application {
                 if (!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)) {
                     logUtils.w(TAG, "⚠️ Battery optimization is enabled, requesting ignore...");
                     
-                    // Show toast to inform user
+                    // Show detailed toast to inform user
                     Toast.makeText(this, 
-                        "正在启动 REST API 服务...\n请允许关闭电池优化以确保后台运行", 
+                        "🔋 检测到电池优化已开启\n\n" +
+                        "请在设置页面找到：\n" +
+                        "1. \"省电策略\" 或 \"电池\"\n" +
+                        "2. 设置为\"无限制\"\n" +
+                        "3. 开启\"允许后台活动\"\n\n" +
+                        "否则 API 服务在后台会被限制", 
                         Toast.LENGTH_LONG).show();
                     
                     // Auto-open settings to guide user
-                    BatteryOptimizationHelper.openBrandSpecificSettings(this);
+                    BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this);
                 }
                 
                 // Start foreground service for API
