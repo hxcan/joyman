@@ -388,7 +388,13 @@ public class JoyManApiService extends NanoHTTPD {
         
         try {
             Map<String, String> files = new HashMap<>();
-            session.parseBody(files);
+            try {
+                session.parseBody(files);
+            } catch (ResponseException e) {
+                logUtils.e(TAG, "createIssue: Error parsing request body", e);
+                return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
+                    "{\"error\":\"Failed to parse request body\"}");
+            }
             String postData = files.get("postData");
             
             if (postData == null || postData.isEmpty()) {
@@ -425,10 +431,6 @@ public class JoyManApiService extends NanoHTTPD {
             
             return createCorsResponse(Response.Status.CREATED, "application/json", responseJson.toString());
             
-        } catch (IOException e) {
-            logUtils.e(TAG, "createIssue: Error reading request body", e);
-            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
-                "{\"error\":\"Internal server error\"}");
         } catch (NumberFormatException e) {
             logUtils.e(TAG, "createIssue: Invalid parameter format", e);
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", 
@@ -456,7 +458,13 @@ public class JoyManApiService extends NanoHTTPD {
         
         try {
             Map<String, String> files = new HashMap<>();
-            session.parseBody(files);
+            try {
+                session.parseBody(files);
+            } catch (ResponseException e) {
+                logUtils.e(TAG, "createProject: Error parsing request body", e);
+                return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", 
+                    "{\"error\":\"Failed to parse request body\"}");
+            }
             String postData = files.get("postData");
             
             if (postData == null || postData.isEmpty()) {
