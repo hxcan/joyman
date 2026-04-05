@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 黑夜模式主题 -->
+    <style name="Theme.JoyMan" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorSecondaryVariant">@color/accent</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+        
+        <!-- 显式定义黑夜模式的文字颜色 -->
+        <item name="android:textColorPrimary">@android:color/white</item>
+        <item name="android:textColorSecondary">@android:color/darker_gray</item>
+        <item name="android:textColorTertiary">@android:color/darker_gray</item>
+        <item name="android:textColorHint">#80FFFFFF</item>
+        
+        <!-- 表面颜色（卡片背景等） -->
+        <item name="colorSurface">#1E1E1E</item>
+        <item name="colorOnSurface">@android:color/white</item>
+        
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowBackground">#121212</item>
+    </style>
+
+    <!-- 无 ActionBar 主题 -->
+    <style name="Theme.JoyMan.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <!-- AppBar 覆盖层 -->
+    <style name="Theme.JoyMan.AppBarOverlay" parent="ThemeOverlay.MaterialComponents.Dark.ActionBar" />
+
+    <!-- Popup 覆盖层 -->
+    <style name="Theme.JoyMan.PopupOverlay" parent="ThemeOverlay.MaterialComponents.Light" />
+
+    <!-- 按钮样式 -->
+    <style name="Theme.JoyMan.Button" parent="Widget.MaterialComponents.Button">
+        <item name="cornerRadius">8dp</item>
+    </style>
+
+    <!-- 卡片样式 -->
+    <style name="Theme.JoyMan.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardCornerRadius">8dp</item>
+        <item name="cardElevation">2dp</item>
+    </style>
+</resources>
