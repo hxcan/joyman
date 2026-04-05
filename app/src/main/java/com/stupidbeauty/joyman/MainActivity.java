@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.stream.Collectors;
 
 
 /**
@@ -138,7 +137,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                 // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
-                    .collect(Collectors.toList());
+                    .collect(java.util.stream.Collectors.toList());
                 
                 taskAdapter.setTasks(filteredTasks);
                 if (filteredTasks.isEmpty()) {
@@ -157,6 +156,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 50, 50, 50);
         
+        // 任务标题输入框
         EditText editTextTitle = new EditText(this);
         editTextTitle.setHint(R.string.new_task_hint);
         editTextTitle.setLayoutParams(new LinearLayout.LayoutParams(
@@ -164,6 +164,19 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             LinearLayout.LayoutParams.WRAP_CONTENT));
         layout.addView(editTextTitle);
         
+        // 任务描述输入框（新增）
+        EditText editTextDescription = new EditText(this);
+        editTextDescription.setHint("任务描述（可选）");
+        editTextDescription.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT));
+        editTextDescription.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        editTextDescription.setMinLines(3);
+        editTextDescription.setMaxLines(5);
+        editTextDescription.setGravity(android.view.Gravity.TOP);
+        layout.addView(editTextDescription);
+        
+        // 项目选择器
         Spinner spinnerProject = new Spinner(this);
         spinnerProject.setLayoutParams(new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -200,6 +213,8 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             .setView(layout)
             .setPositiveButton(R.string.confirm, (dialog, which) -> {
                 String title = editTextTitle.getText().toString().trim();
+                String description = editTextDescription.getText().toString().trim();
+                
                 if (!title.isEmpty()) {
                     int selectedPosition = spinnerProject.getSelectedItemPosition();
                     Long projectId = null;
@@ -207,10 +222,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                         projectId = projectIds.get(selectedPosition);
                     }
                     
-                    long taskId = taskViewModel.createTask(title);
+                    // 创建任务（支持描述）
+                    long taskId = taskViewModel.createTask(title, description);
                     
                     if (projectId != null) {
                         Task task = new Task(taskId, title);
+                        task.setDescription(description);
                         task.setProjectId(projectId);
                         taskViewModel.update(task);
                     }
@@ -275,7 +292,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                 // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
-                    .collect(Collectors.toList());
+                    .collect(java.util.stream.Collectors.toList());
                 
                 taskAdapter.setTasks(filteredTasks);
             }
@@ -288,7 +305,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                 // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
-                    .collect(Collectors.toList());
+                    .collect(java.util.stream.Collectors.toList());
                 
                 taskAdapter.setTasks(filteredTasks);
             }
