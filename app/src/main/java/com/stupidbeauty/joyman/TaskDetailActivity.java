@@ -42,7 +42,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.12
+ * @version 1.0.13
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdapter.OnSubtaskClickListener {
@@ -61,6 +61,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private TextView textPriority;
     private TextView textProject;
     private TextView textCreatedAt;
+    private TextView textDetailId;
     private ImageButton btnCopyTitle;
     private Spinner spinnerProject;
     private Spinner spinnerStatus;
@@ -151,6 +152,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         textPriority = findViewById(R.id.text_detail_priority);
         textProject = findViewById(R.id.text_detail_project);
         textCreatedAt = findViewById(R.id.text_detail_created_at);
+        textDetailId = findViewById(R.id.text_detail_id);
         btnCopyTitle = findViewById(R.id.btn_copy_title);
         spinnerProject = findViewById(R.id.spinner_detail_project);
         spinnerStatus = findViewById(R.id.spinner_status);
@@ -588,6 +590,9 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             return;
         }
         
+        // 显示任务 ID
+        textDetailId.setText("ID: " + task.getId());
+        
         textTitle.setText(task.getTitle());
         
         if (task.getDescription() != null && !task.getDescription().isEmpty()) {
@@ -635,7 +640,8 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             }
         }
         
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+        // 使用精确到秒的时间格式
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
         textCreatedAt.setText("创建时间：" + sdf.format(new Date(task.getCreatedAt())));
         
         updateStatusSpinnerSelection();
