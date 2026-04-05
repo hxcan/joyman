@@ -2,7 +2,6 @@ package com.stupidbeauty.joyman.data.database;
 
 import android.content.Context;
 import android.database.Cursor;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.room.Database;
@@ -15,6 +14,7 @@ import com.stupidbeauty.joyman.data.database.dao.ProjectDao;
 import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
+import com.stupidbeauty.joyman.util.LogUtils;
 
 
 /**
@@ -26,7 +26,7 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
  * - 实体类：Task, Project
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.3
+ * @version 3.0.4
  * @since 2026-03-31
  */
 @Database(
@@ -59,10 +59,10 @@ public abstract class AppDatabase extends RoomDatabase {
     
     @NonNull
     private static AppDatabase buildDatabase(Context context) {
-        Log.d(TAG, "=================================================================");
-        Log.d(TAG, "buildDatabase: START - Creating database instance");
-        Log.d(TAG, "buildDatabase: Database name: " + DATABASE_NAME);
-        Log.d(TAG, "buildDatabase: Database version: 3");
+        LogUtils.getInstance().d(TAG, "=================================================================");
+        LogUtils.getInstance().d(TAG, "buildDatabase: START - Creating database instance");
+        LogUtils.getInstance().d(TAG, "buildDatabase: Database name: " + DATABASE_NAME);
+        LogUtils.getInstance().d(TAG, "buildDatabase: Database version: 3");
         
         return Room.databaseBuilder(
                 context,
@@ -75,15 +75,15 @@ public abstract class AppDatabase extends RoomDatabase {
             .addCallback(new Callback() {
                 @Override
                 public void onCreate(@NonNull SupportSQLiteDatabase db) {
-                    Log.d(TAG, "Callback.onCreate: Database created successfully");
-                    Log.d(TAG, "Callback.onCreate: Table count: " + getTableCount(db));
+                    LogUtils.getInstance().d(TAG, "Callback.onCreate: Database created successfully");
+                    LogUtils.getInstance().d(TAG, "Callback.onCreate: Table count: " + getTableCount(db));
                 }
                 
                 @Override
                 public void onOpen(@NonNull SupportSQLiteDatabase db) {
-                    Log.d(TAG, "Callback.onOpen: Database opened");
-                    Log.d(TAG, "Callback.onOpen: Database version: " + db.getVersion());
-                    Log.d(TAG, "Callback.onOpen: Is readonly: " + db.isReadOnly());
+                    LogUtils.getInstance().d(TAG, "Callback.onOpen: Database opened");
+                    LogUtils.getInstance().d(TAG, "Callback.onOpen: Database version: " + db.getVersion());
+                    LogUtils.getInstance().d(TAG, "Callback.onOpen: Is readonly: " + db.isReadOnly());
                     
                     // 记录任务表的状态
                     logTaskTableStatus(db);
@@ -91,17 +91,17 @@ public abstract class AppDatabase extends RoomDatabase {
                 
                 @Override
                 public void onUpgrade(@NonNull SupportSQLiteDatabase db, int oldVersion, int newVersion) {
-                    Log.d(TAG, "=================================================================");
-                    Log.d(TAG, "Callback.onUpgrade: START");
-                    Log.d(TAG, "Callback.onUpgrade: Old version: " + oldVersion);
-                    Log.d(TAG, "Callback.onUpgrade: New version: " + newVersion);
+                    LogUtils.getInstance().d(TAG, "=================================================================");
+                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: START");
+                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: Old version: " + oldVersion);
+                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: New version: " + newVersion);
                     
                     // 记录升级前的任务表状态
-                    Log.d(TAG, "Callback.onUpgrade: Before upgrade - Task table status:");
+                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: Before upgrade - Task table status:");
                     logTaskTableStatus(db);
                     
-                    Log.d(TAG, "Callback.onUpgrade: END");
-                    Log.d(TAG, "=================================================================");
+                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: END");
+                    LogUtils.getInstance().d(TAG, "=================================================================");
                 }
                 
                 private int getTableCount(SupportSQLiteDatabase db) {
@@ -130,35 +130,35 @@ public abstract class AppDatabase extends RoomDatabase {
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
-            Log.d(TAG, "=================================================================");
-            Log.d(TAG, "MIGRATION_1_2: START - Migrating from version 1 to 2");
+            LogUtils.getInstance().d(TAG, "=================================================================");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: START - Migrating from version 1 to 2");
             
             // 迁移前检查
-            Log.d(TAG, "MIGRATION_1_2: Before migration - Checking if project_id column exists...");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Before migration - Checking if project_id column exists...");
             boolean columnExists = checkColumnExists(database, "tasks", "project_id");
-            Log.d(TAG, "MIGRATION_1_2: project_id column exists: " + columnExists);
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column exists: " + columnExists);
             
             if (!columnExists) {
                 // 添加 project_id 字段（允许 NULL，默认值 NULL）
-                Log.d(TAG, "MIGRATION_1_2: Executing: ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
+                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Executing: ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
                 database.execSQL("ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
-                Log.d(TAG, "MIGRATION_1_2: project_id column added successfully");
+                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column added successfully");
             } else {
-                Log.d(TAG, "MIGRATION_1_2: project_id column already exists, skipping");
+                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column already exists, skipping");
             }
             
             // 创建索引优化查询性能
-            Log.d(TAG, "MIGRATION_1_2: Executing: CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Executing: CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
-            Log.d(TAG, "MIGRATION_1_2: Index created successfully");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Index created successfully");
             
             // 迁移后验证
-            Log.d(TAG, "MIGRATION_1_2: After migration - Verifying changes...");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: After migration - Verifying changes...");
             columnExists = checkColumnExists(database, "tasks", "project_id");
-            Log.d(TAG, "MIGRATION_1_2: project_id column exists after migration: " + columnExists);
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column exists after migration: " + columnExists);
             
-            Log.d(TAG, "MIGRATION_1_2: END - Migration from version 1 to 2 completed");
-            Log.d(TAG, "=================================================================");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: END - Migration from version 1 to 2 completed");
+            LogUtils.getInstance().d(TAG, "=================================================================");
         }
     };
     
@@ -173,46 +173,46 @@ public abstract class AppDatabase extends RoomDatabase {
     static final Migration MIGRATION_2_3 = new Migration(2, 3) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
-            Log.d(TAG, "=================================================================");
-            Log.d(TAG, "MIGRATION_2_3: START - Migrating from version 2 to 3");
+            LogUtils.getInstance().d(TAG, "=================================================================");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: START - Migrating from version 2 to 3");
             
             // 迁移前：记录任务表状态
-            Log.d(TAG, "MIGRATION_2_3: Before migration - Task table status:");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Before migration - Task table status:");
             logTaskTableStatus(database);
             
             // 统计需要更新的任务数量
             int countBefore = countTasksWithStatus(database, 0);
-            Log.d(TAG, "MIGRATION_2_3: Tasks with status=0 (old STATUS_TODO): " + countBefore);
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 (old STATUS_TODO): " + countBefore);
             
             if (countBefore > 0) {
                 // 将旧版本 status=0 (STATUS_TODO) 更新为 status=1 (STATUS_NEW)
-                Log.d(TAG, "MIGRATION_2_3: Executing: UPDATE tasks SET status = 1 WHERE status = 0");
+                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Executing: UPDATE tasks SET status = 1 WHERE status = 0");
                 database.execSQL("UPDATE tasks SET status = 1 WHERE status = 0");
-                Log.d(TAG, "MIGRATION_2_3: UPDATE executed successfully");
+                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: UPDATE executed successfully");
                 
                 // 验证更新结果
                 int countAfter = countTasksWithStatus(database, 0);
-                Log.d(TAG, "MIGRATION_2_3: Tasks with status=0 after migration: " + countAfter);
+                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 after migration: " + countAfter);
                 
                 int countNew = countTasksWithStatus(database, 1);
-                Log.d(TAG, "MIGRATION_2_3: Tasks with status=1 (new STATUS_NEW): " + countNew);
+                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=1 (new STATUS_NEW): " + countNew);
                 
                 if (countAfter == 0 && countNew >= countBefore) {
-                    Log.d(TAG, "MIGRATION_2_3: ✅ Migration successful! All tasks updated from status 0 to 1");
+                    LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Migration successful! All tasks updated from status 0 to 1");
                 } else {
-                    Log.e(TAG, "MIGRATION_2_3: ⚠️ Warning: Migration may not have completed successfully");
-                    Log.e(TAG, "MIGRATION_2_3: Expected " + countBefore + " tasks to be updated");
+                    LogUtils.getInstance().e(TAG, "MIGRATION_2_3: ⚠️ Warning: Migration may not have completed successfully");
+                    LogUtils.getInstance().e(TAG, "MIGRATION_2_3: Expected " + countBefore + " tasks to be updated");
                 }
             } else {
-                Log.d(TAG, "MIGRATION_2_3: No tasks with status=0 found, skipping UPDATE");
+                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: No tasks with status=0 found, skipping UPDATE");
             }
             
             // 迁移后：再次记录任务表状态
-            Log.d(TAG, "MIGRATION_2_3: After migration - Task table status:");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: After migration - Task table status:");
             logTaskTableStatus(database);
             
-            Log.d(TAG, "MIGRATION_2_3: END - Migration from version 2 to 3 completed");
-            Log.d(TAG, "=================================================================");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: END - Migration from version 2 to 3 completed");
+            LogUtils.getInstance().d(TAG, "=================================================================");
         }
     };
     
@@ -265,7 +265,7 @@ public abstract class AppDatabase extends RoomDatabase {
             }
             if (cursor != null) cursor.close();
             
-            Log.d(TAG, "  Task table total count: " + totalCount);
+            LogUtils.getInstance().d(TAG, "  Task table total count: " + totalCount);
             
             // 按状态分组统计
             cursor = db.query("SELECT status, COUNT(*) as count FROM tasks GROUP BY status ORDER BY status");
@@ -273,11 +273,11 @@ public abstract class AppDatabase extends RoomDatabase {
                 int status = cursor.getInt(0);
                 int count = cursor.getInt(1);
                 String statusText = getStatusText(status);
-                Log.d(TAG, "    Status " + status + " (" + statusText + "): " + count + " tasks");
+                LogUtils.getInstance().d(TAG, "    Status " + status + " (" + statusText + "): " + count + " tasks");
             }
             
             // 显示前 5 个任务的详细信息
-            Log.d(TAG, "  Sample tasks (first 5):");
+            LogUtils.getInstance().d(TAG, "  Sample tasks (first 5):");
             cursor = db.query("SELECT id, title, status, priority FROM tasks LIMIT 5");
             int idx = 0;
             while (cursor.moveToNext()) {
@@ -285,12 +285,12 @@ public abstract class AppDatabase extends RoomDatabase {
                 String title = cursor.getString(1);
                 int status = cursor.getInt(2);
                 int priority = cursor.getInt(3);
-                Log.d(TAG, "    [" + (++idx) + "] ID=" + id + ", Title=\"" + truncate(title, 20) + 
+                LogUtils.getInstance().d(TAG, "    [" + (++idx) + "] ID=" + id + ", Title=\"" + truncate(title, 20) + 
                       "\", Status=" + status + ", Priority=" + priority);
             }
             
         } catch (Exception e) {
-            Log.e(TAG, "  Error logging task table status: " + e.getMessage(), e);
+            LogUtils.getInstance().e(TAG, "  Error logging task table status: " + e.getMessage(), e);
         } finally {
             if (cursor != null) cursor.close();
         }
@@ -322,7 +322,7 @@ public abstract class AppDatabase extends RoomDatabase {
     
     public static void closeInstance() {
         if (INSTANCE != null && INSTANCE.isOpen()) {
-            Log.d(TAG, "closeInstance: Closing database instance");
+            LogUtils.getInstance().d(TAG, "closeInstance: Closing database instance");
             INSTANCE.close();
             INSTANCE = null;
         }
