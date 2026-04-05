@@ -1,5 +1,6 @@
 package com.stupidbeauty.joyman.api;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,10 +8,13 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.IBinder;
 
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import com.stupidbeauty.joyman.MainActivity;
 import com.stupidbeauty.joyman.R;
@@ -23,7 +27,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
  * 显示持久通知，告知用户 API 正在运行
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.0.1
  * @since 2026-04-06
  */
 public class ApiForegroundService extends Service {
@@ -32,6 +36,7 @@ public class ApiForegroundService extends Service {
     private static final String CHANNEL_ID = "joyman_api_channel";
     private static final int NOTIFICATION_ID = 1001;
     private static final int DEFAULT_PORT = 8080;
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 1001;
     
     private JoyManApiService apiService;
     private LogUtils logUtils;
@@ -62,12 +67,20 @@ public class ApiForegroundService extends Service {
         logUtils = LogUtils.getInstance();
         logUtils.i(TAG, "onCreate: API Foreground Service created");
         
+        // 创建通知渠道（必须在显示通知前创建）
         createNotificationChannel();
     }
     
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         logUtils.i(TAG, "onStartCommand: Starting API foreground service");
+        
+        // 检查并请求通知权限（Android 13+）
+        if (!checkNotificationPermission()) {
+            logUtils.w(TAG, "onStartCommand: Notification permission not granted, requesting...");
+            requestNotificationPermission();
+            // 即使权限未授予，也尝试启动服务（旧版本不需要此权限）
+        }
         
         // 创建通知
         Notification notification = createNotification();
@@ -107,6 +120,34 @@ public class ApiForegroundService extends Service {
     }
     
     /**
+     * 检查通知权限（Android 13+）
+     */
+    private boolean checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            boolean hasPermission = ActivityCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+            logUtils.d(TAG, "checkNotificationPermission: " + hasPermission);
+            return hasPermission;
+        }
+        // Android 12 及以下不需要此权限
+        return true;
+    }
+    
+    /**
+     * 动态请求通知权限（Android 13+）
+     */
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(
+                MainActivity.getInstance(), // 需要 Activity 实例来请求权限
+                new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                NOTIFICATION_PERMISSION_REQUEST_CODE
+            );
+            logUtils.i(TAG, "requestNotificationPermission: Permission requested");
+        }
+    }
+    
+    /**
      * 创建通知渠道（Android 8.0+）
      */
     private void createNotificationChannel() {
@@ -118,12 +159,18 @@ public class ApiForegroundService extends Service {
             );
             channel.setDescription("REST API 服务运行状态通知");
             channel.setShowBadge(false);
+            channel.enableVibration(false);
+            channel.setSound(null, null);
             
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
                 logUtils.d(TAG, "createNotificationChannel: Channel created");
+            } else {
+                logUtils.e(TAG, "createNotificationChannel: NotificationManager is null");
             }
+        } else {
+            logUtils.d(TAG, "createNotificationChannel: Not needed for API < 26");
         }
     }
     
@@ -138,7 +185,7 @@ public class ApiForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         
-        // 构建通知 - 使用系统默认图标
+        // 构建通知
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("JoyMan API 服务")
             .setContentText("REST API 正在运行于端口 " + DEFAULT_PORT)
@@ -146,8 +193,12 @@ public class ApiForegroundService extends Service {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE);
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
         
-        return builder.build();
+        Notification notification = builder.build();
+        logUtils.d(TAG, "createNotification: Notification created");
+        
+        return notification;
     }
 }
