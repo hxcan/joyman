@@ -26,7 +26,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
  * - 实体类：Task, Project
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.4
+ * @version 3.0.5
  * @since 2026-03-31
  */
 @Database(
@@ -70,7 +70,6 @@ public abstract class AppDatabase extends RoomDatabase {
                 DATABASE_NAME
             )
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-            // 容错机制：当 migration 失败时，允许重建数据库
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -84,8 +83,6 @@ public abstract class AppDatabase extends RoomDatabase {
                     LogUtils.getInstance().d(TAG, "Callback.onOpen: Database opened");
                     LogUtils.getInstance().d(TAG, "Callback.onOpen: Database version: " + db.getVersion());
                     LogUtils.getInstance().d(TAG, "Callback.onOpen: Is readonly: " + db.isReadOnly());
-                    
-                    // 记录任务表的状态
                     logTaskTableStatus(db);
                 }
                 
@@ -105,45 +102,19 @@ public abstract class AppDatabase extends RoomDatabase {
             .build();
     }
     
-    /**
-     * 数据库迁移：版本 1 → 版本 2
-     * 
-     * 变更内容：
-     * - 为 tasks 表添加 project_id 字段（可选，外键）
-     * - 创建索引优化按项目查询的性能
-     */
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
-            LogUtils.getInstance().d(TAG, "=================================================================");
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: START - Migrating from version 1 to 2");
-            
-            // 迁移前检查
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Before migration - Checking if project_id column exists...");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Adding project_id column...");
             boolean columnExists = checkColumnExists(database, "tasks", "project_id");
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column exists: " + columnExists);
-            
             if (!columnExists) {
-                // 添加 project_id 字段（允许 NULL，默认值 NULL）
-                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Executing: ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
                 database.execSQL("ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
-                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column added successfully");
+                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column added");
             } else {
-                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column already exists, skipping");
+                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column already exists");
             }
-            
-            // 创建索引优化查询性能
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Executing: CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Index created successfully");
-            
-            // 迁移后验证
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: After migration - Verifying changes...");
-            columnExists = checkColumnExists(database, "tasks", "project_id");
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: project_id column exists after migration: " + columnExists);
-            
-            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: END - Migration from version 1 to 2 completed");
-            LogUtils.getInstance().d(TAG, "=================================================================");
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Index created");
         }
     };
     
@@ -151,9 +122,14 @@ public abstract class AppDatabase extends RoomDatabase {
      * 数据库迁移：版本 2 → 版本 3
      * 
      * 变更内容：
-     * - Task 实体类状态常量扩展（STATUS_NEW=1, STATUS_IN_PROGRESS=2, STATUS_RESOLVED=3, STATUS_FEEDBACK=4, STATUS_CLOSED=5）
      * - 更新现有任务的状态值：0 (STATUS_TODO) → 1 (STATUS_NEW)
+     * - **重新创建 tasks 表**，修改 status 字段的默认值从 '0' 改为 '1'
      * - 修复 Room schema 验证失败问题
+     * 
+     * 为什么需要重新创建表？
+     * - SQLite 不支持直接修改字段的默认值（ALTER COLUMN ... SET DEFAULT）
+     * - Room 在迁移后会验证 schema，包括字段的默认值定义
+     * - 只 UPDATE 数据不够，必须修改表的 schema 定义
      */
     static final Migration MIGRATION_2_3 = new Migration(2, 3) {
         @Override
@@ -162,55 +138,71 @@ public abstract class AppDatabase extends RoomDatabase {
             LogUtils.getInstance().d(TAG, "MIGRATION_2_3: START - Migrating from version 2 to 3");
             
             // 迁移前：记录任务表状态
-            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Before migration - Task table status:");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Before migration:");
             logTaskTableStatus(database);
             
-            // 统计需要更新的任务数量
             int countBefore = countTasksWithStatus(database, 0);
-            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 (old STATUS_TODO): " + countBefore);
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0: " + countBefore);
             
-            if (countBefore > 0) {
-                // 将旧版本 status=0 (STATUS_TODO) 更新为 status=1 (STATUS_NEW)
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Executing: UPDATE tasks SET status = 1 WHERE status = 0");
-                database.execSQL("UPDATE tasks SET status = 1 WHERE status = 0");
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: UPDATE executed successfully");
-                
-                // 验证更新结果
-                int countAfter = countTasksWithStatus(database, 0);
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 after migration: " + countAfter);
-                
-                int countNew = countTasksWithStatus(database, 1);
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=1 (new STATUS_NEW): " + countNew);
-                
-                if (countAfter == 0 && countNew >= countBefore) {
-                    LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Migration successful! All tasks updated from status 0 to 1");
-                } else {
-                    LogUtils.getInstance().e(TAG, "MIGRATION_2_3: ⚠️ Warning: Migration may not have completed successfully");
-                    LogUtils.getInstance().e(TAG, "MIGRATION_2_3: Expected " + countBefore + " tasks to be updated");
-                }
-            } else {
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: No tasks with status=0 found, skipping UPDATE");
+            // 步骤 1: 创建临时表（带正确的 schema，status 默认值为 1）
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 1 - Creating temporary table with correct schema...");
+            database.execSQL(
+                "CREATE TABLE tasks_temp (" +
+                "id INTEGER PRIMARY KEY NOT NULL, " +
+                "title TEXT DEFAULT '', " +
+                "description TEXT DEFAULT '', " +
+                "status INTEGER NOT NULL DEFAULT 1, " +
+                "priority INTEGER NOT NULL DEFAULT 2, " +
+                "project_id INTEGER DEFAULT NULL, " +
+                "created_at INTEGER NOT NULL, " +
+                "updated_at INTEGER NOT NULL, " +
+                "due_date INTEGER DEFAULT NULL, " +
+                "tags TEXT DEFAULT '')"
+            );
+            
+            // 步骤 2: 复制所有数据
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 2 - Copying data...");
+            database.execSQL(
+                "INSERT INTO tasks_temp (id, title, description, status, priority, project_id, created_at, updated_at, due_date, tags) " +
+                "SELECT id, title, description, status, priority, project_id, created_at, updated_at, due_date, tags FROM tasks"
+            );
+            
+            // 步骤 3: 删除旧表
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 3 - Dropping old table...");
+            database.execSQL("DROP TABLE tasks");
+            
+            // 步骤 4: 重命名临时表
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 4 - Renaming temporary table...");
+            database.execSQL("ALTER TABLE tasks_temp RENAME TO tasks");
+            
+            // 步骤 5: 创建索引
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 5 - Creating index...");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
+            
+            // 迁移后验证
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: After migration:");
+            logTaskTableStatus(database);
+            
+            int countAfter = countTasksWithStatus(database, 0);
+            int countNew = countTasksWithStatus(database, 1);
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0: " + countAfter);
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=1: " + countNew);
+            
+            if (countAfter == 0 && countNew >= countBefore) {
+                LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Migration successful! Schema and data updated.");
             }
             
-            // 迁移后：再次记录任务表状态
-            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: After migration - Task table status:");
-            logTaskTableStatus(database);
-            
-            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: END - Migration from version 2 to 3 completed");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: END");
             LogUtils.getInstance().d(TAG, "=================================================================");
         }
     };
     
-    /**
-     * 检查表中是否存在指定列
-     */
     private static boolean checkColumnExists(SupportSQLiteDatabase db, String tableName, String columnName) {
         Cursor cursor = null;
         try {
             cursor = db.query("PRAGMA table_info(" + tableName + ")");
             while (cursor.moveToNext()) {
-                String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-                if (name.equals(columnName)) {
+                if (cursor.getString(cursor.getColumnIndexOrThrow("name")).equals(columnName)) {
                     return true;
                 }
             }
@@ -220,9 +212,6 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     }
     
-    /**
-     * 统计指定状态的任务数量
-     */
     private static int countTasksWithStatus(SupportSQLiteDatabase db, int status) {
         Cursor cursor = null;
         try {
@@ -236,69 +225,38 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     }
     
-    /**
-     * 记录任务表的详细状态
-     */
     private static void logTaskTableStatus(SupportSQLiteDatabase db) {
         Cursor cursor = null;
         try {
-            // 获取总任务数
             cursor = db.query("SELECT COUNT(*) FROM tasks");
             int totalCount = 0;
-            if (cursor.moveToFirst()) {
-                totalCount = cursor.getInt(0);
-            }
+            if (cursor.moveToFirst()) totalCount = cursor.getInt(0);
             if (cursor != null) cursor.close();
             
-            LogUtils.getInstance().d(TAG, "  Task table total count: " + totalCount);
+            LogUtils.getInstance().d(TAG, "  Total tasks: " + totalCount);
             
-            // 按状态分组统计
             cursor = db.query("SELECT status, COUNT(*) as count FROM tasks GROUP BY status ORDER BY status");
             while (cursor.moveToNext()) {
                 int status = cursor.getInt(0);
                 int count = cursor.getInt(1);
-                String statusText = getStatusText(status);
-                LogUtils.getInstance().d(TAG, "    Status " + status + " (" + statusText + "): " + count + " tasks");
+                LogUtils.getInstance().d(TAG, "    Status " + status + ": " + count + " tasks");
             }
             
-            // 显示前 5 个任务的详细信息
-            LogUtils.getInstance().d(TAG, "  Sample tasks (first 5):");
-            cursor = db.query("SELECT id, title, status, priority FROM tasks LIMIT 5");
-            int idx = 0;
+            cursor = db.query("SELECT id, title, status FROM tasks LIMIT 3");
+            LogUtils.getInstance().d(TAG, "  Sample tasks:");
             while (cursor.moveToNext()) {
                 long id = cursor.getLong(0);
                 String title = cursor.getString(1);
                 int status = cursor.getInt(2);
-                int priority = cursor.getInt(3);
-                LogUtils.getInstance().d(TAG, "    [" + (++idx) + "] ID=" + id + ", Title=\"" + truncate(title, 20) + 
-                      "\", Status=" + status + ", Priority=" + priority);
+                LogUtils.getInstance().d(TAG, "    ID=" + id + ", Status=" + status + ", Title=\"" + truncate(title, 15) + "\"");
             }
-            
         } catch (Exception e) {
-            LogUtils.getInstance().e(TAG, "  Error logging task table status: " + e.getMessage(), e);
+            LogUtils.getInstance().e(TAG, "Error logging status: " + e.getMessage(), e);
         } finally {
             if (cursor != null) cursor.close();
         }
     }
     
-    /**
-     * 获取状态的文本描述
-     */
-    private static String getStatusText(int status) {
-        switch (status) {
-            case 0: return "STATUS_TODO (旧)";
-            case 1: return "STATUS_NEW (新)";
-            case 2: return "STATUS_IN_PROGRESS";
-            case 3: return "STATUS_RESOLVED";
-            case 4: return "STATUS_FEEDBACK";
-            case 5: return "STATUS_CLOSED";
-            default: return "UNKNOWN";
-        }
-    }
-    
-    /**
-     * 截断字符串
-     */
     private static String truncate(String str, int maxLen) {
         if (str == null) return "null";
         if (str.length() <= maxLen) return str;
@@ -307,7 +265,6 @@ public abstract class AppDatabase extends RoomDatabase {
     
     public static void closeInstance() {
         if (INSTANCE != null && INSTANCE.isOpen()) {
-            LogUtils.getInstance().d(TAG, "closeInstance: Closing database instance");
             INSTANCE.close();
             INSTANCE = null;
         }
