@@ -43,7 +43,7 @@ import java.util.Locale;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.14
+ * @version 1.0.15
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdapter.OnSubtaskClickListener {
@@ -57,7 +57,6 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private ProjectViewModel projectViewModel;
     
     private TextView textTitle;
-    private TextView textDescription;
     private TextView textStatus;
     private TextView textPriority;
     private TextView textProject;
@@ -68,6 +67,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private Spinner spinnerStatus;
     private View btnSaveChanges;
     private View btnCreateSubtask;
+    private EditText editDetailDescription;
     
     // 子任务列表相关
     private TextView textSubtasksTitle;
@@ -82,6 +82,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private List<Project> projectList;
     private Long pendingProjectId;   // 暂存待保存的项目 ID
     private Integer pendingStatusId; // 暂存待保存的状态 ID
+    private String pendingDescription; // 暂存待保存的描述
     
     // 状态列表数据
     private int[] statusIds;
@@ -152,7 +153,6 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private void initViews() {
         LogUtils.getInstance().d(TAG, "initViews: Initializing views");
         textTitle = findViewById(R.id.text_detail_title);
-        textDescription = findViewById(R.id.text_detail_description);
         textStatus = findViewById(R.id.text_detail_status);
         textPriority = findViewById(R.id.text_detail_priority);
         textProject = findViewById(R.id.text_detail_project);
@@ -163,6 +163,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         spinnerStatus = findViewById(R.id.spinner_status);
         btnSaveChanges = findViewById(R.id.btn_save_changes);
         btnCreateSubtask = findViewById(R.id.btn_create_subtask);
+        editDetailDescription = findViewById(R.id.edit_detail_description);
         
         // 子任务列表相关视图
         textSubtasksTitle = findViewById(R.id.text_subtasks_title);
@@ -192,6 +193,29 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
                 intent.putExtra(TaskDetailActivity.EXTRA_TASK_ID, task.getParentId());
                 startActivity(intent);
             }
+        });
+        
+        // 监听描述变化
+        editDetailDescription.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (task != null) {
+                    String currentDesc = editDetailDescription.getText().toString();
+                    String originalDesc = task.getDescription() != null ? task.getDescription() : "";
+                    if (!currentDesc.equals(originalDesc)) {
+                        pendingDescription = currentDesc;
+                    } else {
+                        pendingDescription = null;
+                    }
+                    updateSaveButtonState();
+                }
+            }
+            
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
         });
         
         // 初始化状态下拉框
@@ -268,7 +292,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
      * 更新保存按钮的可用状态
      */
     private void updateSaveButtonState() {
-        boolean hasChanges = (pendingStatusId != null || pendingProjectId != null);
+        boolean hasChanges = (pendingStatusId != null || pendingProjectId != null || pendingDescription != null);
         btnSaveChanges.setEnabled(hasChanges);
         btnSaveChanges.setAlpha(hasChanges ? 1.0f : 0.5f);
         
@@ -280,6 +304,9 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             }
             if (pendingProjectId != null) {
                 changes.add("项目");
+            }
+            if (pendingDescription != null) {
+                changes.add("描述");
             }
             hint.append(String.join(",", changes));
             ((TextView) btnSaveChanges).setText(hint.toString());
@@ -517,6 +544,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             this.task = task;
             pendingStatusId = null;
             pendingProjectId = null;
+            pendingDescription = null;
             LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus() + ", parentId: " + task.getParentId());
             updateUI();
             updateSaveButtonState();
@@ -562,7 +590,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     }
     
     /**
-     * 保存所有待处理的变更（状态 + 项目）
+     * 保存所有待处理的变更（状态 + 项目 + 描述）
      */
     private void saveAllChanges() {
         LogUtils.getInstance().d(TAG, "=================================================================");
@@ -606,6 +634,15 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             hasChanges = true;
         }
         
+        // 保存描述变更
+        if (pendingDescription != null) {
+            LogUtils.getInstance().i(TAG, "saveAllChanges: Saving description");
+            task.setDescription(pendingDescription);
+            savedItems.add("描述");
+            pendingDescription = null;
+            hasChanges = true;
+        }
+        
         if (!hasChanges) {
             LogUtils.getInstance().d(TAG, "saveAllChanges: No changes detected");
             Toast.makeText(this, "没有需要保存的更改", Toast.LENGTH_SHORT).show();
@@ -637,12 +674,9 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         
         textTitle.setText(task.getTitle());
         
-        if (task.getDescription() != null && !task.getDescription().isEmpty()) {
-            textDescription.setText(task.getDescription());
-            textDescription.setVisibility(View.VISIBLE);
-        } else {
-            textDescription.setVisibility(View.GONE);
-        }
+        // 加载描述到编辑框
+        String description = task.getDescription() != null ? task.getDescription() : "";
+        editDetailDescription.setText(description);
         
         updateStatusUI();
         textPriority.setText("优先级：" + task.getPriorityText());
