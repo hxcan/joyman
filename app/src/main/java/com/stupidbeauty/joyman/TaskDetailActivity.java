@@ -39,6 +39,7 @@ import java.util.Locale;
 
 
 
+
 /**
  * 任务详情界面
  * 
@@ -318,7 +319,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     }
     
     /**
-     * 复制任务标题到剪贴板
+     * 复制任务标题到剪贴板（包含描述）
      */
     private void copyTitleToClipboard() {
         if (task == null) {
@@ -335,15 +336,22 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         }
         
         // 获取项目名称，格式：[项目名] 任务标题
-        String copyContent = title;
+        StringBuilder copyContent = new StringBuilder();
         if (task.getProjectId() != null && projectList != null) {
             long targetProjectId = task.getProjectId();
             for (Project p : projectList) {
                 if (p != null && p.getId() == targetProjectId) {
-                    copyContent = "[" + p.getName() + "] " + title;
+                    copyContent.append("[").append(p.getName()).append("] ");
                     break;
                 }
             }
+        }
+        copyContent.append(title);
+        
+        // 添加描述内容（如果有）
+        String description = task.getDescription();
+        if (description != null && !description.trim().isEmpty()) {
+            copyContent.append("\n\n").append(description);
         }
         
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -353,14 +361,14 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             return;
         }
         
-        ClipData clip = ClipData.newPlainText("JoyMan 任务标题", copyContent);
+        ClipData clip = ClipData.newPlainText("JoyMan 任务", copyContent.toString());
         clipboard.setPrimaryClip(clip);
         
-        LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Title copied successfully: " + copyContent);
+        LogUtils.getInstance().i(TAG, "copyTitleToClipboard: Content copied successfully: " + copyContent.toString());
         
-        String toastMessage = "已复制：" + copyContent;
-        if (toastMessage.length() > 50) {
-            toastMessage = toastMessage.substring(0, 47) + "...";
+        String toastMessage = "已复制：" + title;
+        if (description != null && !description.trim().isEmpty()) {
+            toastMessage += " 和描述";
         }
         Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show();
     }
