@@ -25,7 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textSize="15sp"
-            android:textColor="#212121"
+            android:textColor="?android:attr/textColorPrimary"
             android:maxLines="2"
             android:ellipsize="end"
             android:text="子任务标题" />
@@ -45,7 +45,7 @@
                 android:layout_height="wrap_content"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                android:textColor="#2196F3"
+                android:textColor="?android:attr/textColorSecondary"
                 android:text="新建" />
 
             <!-- 优先级 -->
@@ -54,7 +54,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textSize="11sp"
-                android:textColor="#757575"
+                android:textColor="?android:attr/textColorTertiary"
                 android:layout_marginTop="2dp"
                 android:text="优先级：普通" />
 
