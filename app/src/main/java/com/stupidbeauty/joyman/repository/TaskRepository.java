@@ -13,11 +13,12 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 /**
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.7
+ * @version 2.0.8
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -52,6 +53,14 @@ public class TaskRepository {
             LogUtils.getInstance().i(TAG, "getInstance: Returning existing instance");
         }
         return INSTANCE;
+    }
+    
+    /**
+     * 获取 TaskDao 实例
+     * @return TaskDao 实例
+     */
+    public TaskDao getTaskDao() {
+        return taskDao;
     }
     
     public void insert(Task task) {
