@@ -138,11 +138,11 @@ public class ApiForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         
-        // 构建通知
+        // 构建通知 - 使用系统默认图标
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("JoyMan API 服务")
             .setContentText("REST API 正在运行于端口 " + DEFAULT_PORT)
-            .setSmallIcon(R.drawable.ic_notification) // 需要替换为实际图标
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // 使用系统默认图标
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
