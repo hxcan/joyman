@@ -24,7 +24,7 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
  * - 实体类：Task, Project
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.2
+ * @version 3.0.3
  * @since 2026-03-31
  */
 @Database(
@@ -62,10 +62,11 @@ public abstract class AppDatabase extends RoomDatabase {
                 DATABASE_NAME
             )
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-            // 容错机制：当 schema 验证失败时（如默认值不匹配），允许降级重建
+            // 容错机制：当 migration 失败时（包括 schema 验证失败），允许重建数据库
             // 实际升级场景中会优先使用 MIGRATION_2_3 进行无损迁移
-            // 只有在 migration 无法处理时才回退到重建数据库
-            .fallbackToDestructiveMigrationOnDowngrade()
+            // 只有在 migration 完全无法处理时才回退到重建数据库
+            // 这是 Room 官方推荐的"尽力而为"迁移策略
+            .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
                 public void onCreate(@NonNull SupportSQLiteDatabase db) {
