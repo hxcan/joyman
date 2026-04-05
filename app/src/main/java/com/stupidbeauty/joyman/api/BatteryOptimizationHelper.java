@@ -16,7 +16,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
  * 支持各大手机品牌的特定设置页面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.0.1
  * @since 2026-04-06
  */
 public class BatteryOptimizationHelper {
@@ -42,27 +42,29 @@ public class BatteryOptimizationHelper {
     
     /**
      * 请求忽略电池优化
-     * 会跳转到系统设置页面
+     * 优先使用标准 Intent，失败后打开应用详情页
      */
     public static void requestIgnoreBatteryOptimizations(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
+                // 优先尝试标准的电池优化忽略请求
                 Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + context.getPackageName()));
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 context.startActivity(intent);
-                logUtils.i(TAG, "requestIgnoreBatteryOptimizations: Opened system settings");
+                logUtils.i(TAG, "requestIgnoreBatteryOptimizations: Opened battery optimization settings");
+                logUtils.i(TAG, "📱 请找到 JoyMan 应用，设置为\"允许后台活动\"或\"无限制\"");
             } catch (Exception e) {
-                logUtils.e(TAG, "requestIgnoreBatteryOptimizations: Failed to open settings", e);
-                // 如果通用方式失败，尝试品牌特定方式
-                openBrandSpecificSettings(context);
+                logUtils.w(TAG, "requestIgnoreBatteryOptimizations: Standard intent failed, opening app details", e);
+                // 如果标准方式失败，打开应用详情页面
+                openAppDetailsSettings(context);
             }
         }
     }
     
     /**
      * 打开应用详细信息页面
-     * 用户可以在此页面手动关闭电池优化
+     * 用户可以在此页面找到省电策略/电池优化选项
      */
     public static void openAppDetailsSettings(Context context) {
         try {
@@ -70,164 +72,22 @@ public class BatteryOptimizationHelper {
             intent.setData(Uri.fromParts("package", context.getPackageName(), null));
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-            logUtils.i(TAG, "openAppDetailsSettings: Opened app details");
+            logUtils.i(TAG, "openAppDetailsSettings: Opened app details settings");
+            logUtils.i(TAG, "📱 请在应用信息页面找到：");
+            logUtils.i(TAG, "   1. \"省电策略\" 或 \"电池\" 选项");
+            logUtils.i(TAG, "   2. 设置为\"无限制\" 或 \"允许后台活动\"");
+            logUtils.i(TAG, "   3. 开启\"自启动\"权限（如果需要）");
         } catch (Exception e) {
             logUtils.e(TAG, "openAppDetailsSettings: Failed to open settings", e);
         }
     }
     
     /**
-     * 打开品牌特定的设置页面
-     * 支持小米、华为、OPPO、vivo 等品牌
+     * 打开品牌特定的设置页面（备用方案）
+     * 目前统一使用应用详情页，更可靠
      */
     public static void openBrandSpecificSettings(Context context) {
-        String brand = Build.BRAND.toLowerCase();
-        logUtils.d(TAG, "openBrandSpecificSettings: Brand = " + brand);
-        
-        try {
-            if (brand.contains("xiaomi") || brand.contains("redmi")) {
-                // 小米/红米手机
-                openXiaomiSettings(context);
-            } else if (brand.contains("huawei")) {
-                // 华为手机
-                openHuaweiSettings(context);
-            } else if (brand.contains("oppo")) {
-                // OPPO 手机
-                openOppoSettings(context);
-            } else if (brand.contains("vivo")) {
-                // vivo 手机
-                openVivoSettings(context);
-            } else if (brand.contains("samsung")) {
-                // 三星手机
-                openSamsungSettings(context);
-            } else {
-                // 其他品牌，打开应用详情页面
-                openAppDetailsSettings(context);
-            }
-        } catch (Exception e) {
-            logUtils.e(TAG, "openBrandSpecificSettings: Failed, fallback to app details", e);
-            openAppDetailsSettings(context);
-        }
-    }
-    
-    /**
-     * 小米手机设置
-     */
-    private static void openXiaomiSettings(Context context) {
-        try {
-            // MIUI 省电策略设置
-            Intent intent = new Intent("miui.intent.action.POWER_HIDE_MODE_APP_LIST_MENU");
-            intent.setClassName("com.miui.securitycenter", 
-                "com.miui.permcenter.autostart.AutoStartManagementActivity");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            logUtils.i(TAG, "openXiaomiSettings: Opened MIUI power settings");
-        } catch (Exception e) {
-            logUtils.w(TAG, "openXiaomiSettings: MIUI specific intent failed, trying alternative");
-            try {
-                // 备用方案：打开应用详情
-                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                intent.setData(Uri.fromParts("package", context.getPackageName(), null));
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
-            } catch (Exception ex) {
-                logUtils.e(TAG, "openXiaomiSettings: All attempts failed", ex);
-            }
-        }
-    }
-    
-    /**
-     * 华为手机设置
-     */
-    private static void openHuaweiSettings(Context context) {
-        try {
-            Intent intent = new Intent();
-            intent.setClassName("com.huawei.systemmanager", 
-                "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            logUtils.i(TAG, "openHuaweiSettings: Opened Huawei startup settings");
-        } catch (Exception e) {
-            logUtils.w(TAG, "openHuaweiSettings: Huawei specific intent failed");
-            openAppDetailsSettings(context);
-        }
-    }
-    
-    /**
-     * OPPO 手机设置
-     */
-    private static void openOppoSettings(Context context) {
-        try {
-            Intent intent = new Intent();
-            intent.setClassName("com.coloros.safecenter", 
-                "com.coloros.safecenter.permission.startup.StartupAppListActivity");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            logUtils.i(TAG, "openOppoSettings: Opened OPPO startup settings");
-        } catch (Exception e) {
-            logUtils.w(TAG, "openOppoSettings: OPPO specific intent failed");
-            openAppDetailsSettings(context);
-        }
-    }
-    
-    /**
-     * vivo 手机设置
-     */
-    private static void openVivoSettings(Context context) {
-        try {
-            Intent intent = new Intent();
-            intent.setClassName("com.vivo.permissionmanager", 
-                "com.vivo.permissionmanager.activity.BgStartUpManagerActivity");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            logUtils.i(TAG, "openVivoSettings: Opened vivo startup settings");
-        } catch (Exception e) {
-            logUtils.w(TAG, "openVivoSettings: vivo specific intent failed");
-            openAppDetailsSettings(context);
-        }
-    }
-    
-    /**
-     * 三星手机设置
-     */
-    private static void openSamsungSettings(Context context) {
-        try {
-            Intent intent = new Intent();
-            intent.setClassName("com.samsung.android.lool", 
-                "com.samsung.android.sm.ui.battery.BatteryActivity");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            logUtils.i(TAG, "openSamsungSettings: Opened Samsung battery settings");
-        } catch (Exception e) {
-            logUtils.w(TAG, "openSamsungSettings: Samsung specific intent failed");
-            openAppDetailsSettings(context);
-        }
-    }
-    
-    /**
-     * 显示引导对话框（可选）
-     * 在实际使用中，可以结合 AlertDialog 使用
-     */
-    public interface BatteryOptimizationCallback {
-        void onOpenedSettings();
-        void onFailed(Exception e);
-    }
-    
-    /**
-     * 请求忽略电池优化，带回调
-     */
-    public static void requestIgnoreBatteryOptimizations(Context context, 
-                                                         BatteryOptimizationCallback callback) {
-        try {
-            requestIgnoreBatteryOptimizations(context);
-            if (callback != null) {
-                callback.onOpenedSettings();
-            }
-        } catch (Exception e) {
-            logUtils.e(TAG, "requestIgnoreBatteryOptimizations: Failed", e);
-            if (callback != null) {
-                callback.onFailed(e);
-            }
-        }
+        // 直接使用应用详情页，这是最可靠的方式
+        openAppDetailsSettings(context);
     }
 }
