@@ -32,12 +32,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.stream.Collectors;
+
 
 /**
  * JoyMan 主界面 - 任务列表展示
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.3
+ * @version 3.0.4
  * @since 2026-04-01
  */
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener, ProjectAdapter.OnProjectClickListener {
@@ -133,8 +135,13 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         
         taskViewModel.getAllTasks().observe(this, tasks -> {
             if (tasks != null && selectedProject == null) {
-                taskAdapter.setTasks(tasks);
-                if (tasks.isEmpty()) {
+                // 过滤掉已关闭的任务
+                List<Task> filteredTasks = tasks.stream()
+                    .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
+                    .collect(Collectors.toList());
+                
+                taskAdapter.setTasks(filteredTasks);
+                if (filteredTasks.isEmpty()) {
                     Toast.makeText(this, R.string.no_tasks, Toast.LENGTH_SHORT).show();
                 }
             }
@@ -265,7 +272,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private void loadAllTasks() {
         taskViewModel.getAllTasks().observe(this, tasks -> {
             if (tasks != null) {
-                taskAdapter.setTasks(tasks);
+                // 过滤掉已关闭的任务
+                List<Task> filteredTasks = tasks.stream()
+                    .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
+                    .collect(Collectors.toList());
+                
+                taskAdapter.setTasks(filteredTasks);
             }
         });
     }
@@ -273,7 +285,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private void loadTasksByProject(long projectId) {
         taskViewModel.getTasksByProject(projectId).observe(this, tasks -> {
             if (tasks != null) {
-                taskAdapter.setTasks(tasks);
+                // 过滤掉已关闭的任务
+                List<Task> filteredTasks = tasks.stream()
+                    .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
+                    .collect(Collectors.toList());
+                
+                taskAdapter.setTasks(filteredTasks);
             }
         });
     }
