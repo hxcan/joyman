@@ -26,7 +26,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
  * - 实体类：Task, Project
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.4
+ * @version 3.0.5
  * @since 2026-03-31
  */
 @Database(
@@ -153,7 +153,13 @@ public abstract class AppDatabase extends RoomDatabase {
      * 变更内容：
      * - Task 实体类状态常量扩展（STATUS_NEW=1, STATUS_IN_PROGRESS=2, STATUS_RESOLVED=3, STATUS_FEEDBACK=4, STATUS_CLOSED=5）
      * - 更新现有任务的状态值：0 (STATUS_TODO) → 1 (STATUS_NEW)
+     * - **重新创建 tasks 表**，修改 status 字段的默认值从 '0' 改为 '1'
      * - 修复 Room schema 验证失败问题
+     * 
+     * 为什么需要重新创建表？
+     * - SQLite 不支持直接修改字段的默认值（ALTER COLUMN ... SET DEFAULT）
+     * - Room 在迁移后会验证 schema，包括字段的默认值定义
+     * - 只 UPDATE 数据不够，必须修改表的 schema 定义
      */
     static final Migration MIGRATION_2_3 = new Migration(2, 3) {
         @Override
@@ -169,32 +175,60 @@ public abstract class AppDatabase extends RoomDatabase {
             int countBefore = countTasksWithStatus(database, 0);
             LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 (old STATUS_TODO): " + countBefore);
             
-            if (countBefore > 0) {
-                // 将旧版本 status=0 (STATUS_TODO) 更新为 status=1 (STATUS_NEW)
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Executing: UPDATE tasks SET status = 1 WHERE status = 0");
-                database.execSQL("UPDATE tasks SET status = 1 WHERE status = 0");
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: UPDATE executed successfully");
-                
-                // 验证更新结果
-                int countAfter = countTasksWithStatus(database, 0);
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 after migration: " + countAfter);
-                
-                int countNew = countTasksWithStatus(database, 1);
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=1 (new STATUS_NEW): " + countNew);
-                
-                if (countAfter == 0 && countNew >= countBefore) {
-                    LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Migration successful! All tasks updated from status 0 to 1");
-                } else {
-                    LogUtils.getInstance().e(TAG, "MIGRATION_2_3: ⚠️ Warning: Migration may not have completed successfully");
-                    LogUtils.getInstance().e(TAG, "MIGRATION_2_3: Expected " + countBefore + " tasks to be updated");
-                }
-            } else {
-                LogUtils.getInstance().d(TAG, "MIGRATION_2_3: No tasks with status=0 found, skipping UPDATE");
-            }
+            // 步骤 1: 创建临时表（带正确的 schema，包括 status 默认值为 1）
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 1 - Creating temporary table tasks_temp with correct schema...");
+            database.execSQL(
+                "CREATE TABLE tasks_temp (" +
+                "id INTEGER PRIMARY KEY NOT NULL, " +
+                "title TEXT DEFAULT '', " +
+                "description TEXT DEFAULT '', " +
+                "status INTEGER NOT NULL DEFAULT 1, " +  // ← 关键：默认值改为 1
+                "priority INTEGER NOT NULL DEFAULT 2, " +
+                "project_id INTEGER DEFAULT NULL, " +
+                "created_at INTEGER NOT NULL, " +
+                "updated_at INTEGER NOT NULL, " +
+                "due_date INTEGER DEFAULT NULL, " +
+                "tags TEXT DEFAULT '')"
+            );
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Temporary table created");
             
-            // 迁移后：再次记录任务表状态
+            // 步骤 2: 复制所有数据到临时表
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 2 - Copying data from tasks to tasks_temp...");
+            database.execSQL(
+                "INSERT INTO tasks_temp (id, title, description, status, priority, project_id, created_at, updated_at, due_date, tags) " +
+                "SELECT id, title, description, status, priority, project_id, created_at, updated_at, due_date, tags FROM tasks"
+            );
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Data copied successfully");
+            
+            // 步骤 3: 删除旧表
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 3 - Dropping old tasks table...");
+            database.execSQL("DROP TABLE tasks");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Old table dropped");
+            
+            // 步骤 4: 重命名临时表为 tasks
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 4 - Renaming tasks_temp to tasks...");
+            database.execSQL("ALTER TABLE tasks_temp RENAME TO tasks");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Table renamed to tasks");
+            
+            // 步骤 5: 创建索引
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Step 5 - Creating index on project_id...");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Index created");
+            
+            // 迁移后验证
             LogUtils.getInstance().d(TAG, "MIGRATION_2_3: After migration - Task table status:");
             logTaskTableStatus(database);
+            
+            int countAfter = countTasksWithStatus(database, 0);
+            int countNew = countTasksWithStatus(database, 1);
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=0 after migration: " + countAfter);
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Tasks with status=1 (new STATUS_NEW): " + countNew);
+            
+            if (countAfter == 0 && countNew >= countBefore) {
+                LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Migration successful! All tasks updated and schema fixed.");
+            } else {
+                LogUtils.getInstance().e(TAG, "MIGRATION_2_3: ⚠️ Warning: Migration may not have completed successfully");
+            }
             
             LogUtils.getInstance().d(TAG, "MIGRATION_2_3: END - Migration from version 2 to 3 completed");
             LogUtils.getInstance().d(TAG, "=================================================================");
