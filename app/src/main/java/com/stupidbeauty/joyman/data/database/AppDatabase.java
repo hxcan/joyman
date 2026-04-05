@@ -89,21 +89,6 @@ public abstract class AppDatabase extends RoomDatabase {
                     logTaskTableStatus(db);
                 }
                 
-                @Override
-                public void onUpgrade(@NonNull SupportSQLiteDatabase db, int oldVersion, int newVersion) {
-                    LogUtils.getInstance().d(TAG, "=================================================================");
-                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: START");
-                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: Old version: " + oldVersion);
-                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: New version: " + newVersion);
-                    
-                    // 记录升级前的任务表状态
-                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: Before upgrade - Task table status:");
-                    logTaskTableStatus(db);
-                    
-                    LogUtils.getInstance().d(TAG, "Callback.onUpgrade: END");
-                    LogUtils.getInstance().d(TAG, "=================================================================");
-                }
-                
                 private int getTableCount(SupportSQLiteDatabase db) {
                     Cursor cursor = null;
                     try {
