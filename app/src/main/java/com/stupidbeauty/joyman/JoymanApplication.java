@@ -38,8 +38,7 @@ public class JoymanApplication extends Application {
                 apiManager.startApiService();
                 Log.i(TAG, "✅ REST API server started on port " + apiManager.getApiPort());
                 Log.i(TAG, "📡 API URL: " + apiManager.getApiUrl());
-                Log.i(TAG, "🔑 API Key: " + (apiManager.getApiKey() != null ? 
-                    apiManager.getApiKey().substring(0, 8) + "..." : "Not generated"));
+                Log.i(TAG, "🔐 Authentication: HTTP Basic Auth (admin/admin)");
             } else {
                 Log.i(TAG, "ℹ️ REST API is disabled (enable in settings)");
             }
