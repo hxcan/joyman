@@ -14,11 +14,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 
+
 /**
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.8
+ * @version 2.0.9
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -223,41 +224,88 @@ public class TaskRepository {
         }
     }
     
+    /**
+     * 获取所有任务（LiveData 响应式）
+     * @return 可观察的任务列表
+     */
     public LiveData<List<Task>> getAllTasksLive() { 
         logUtils.d(TAG, "📋 Returning all tasks live data");
         return allTasksLive; 
     }
     
+    /**
+     * 获取所有任务（同步，直接查询数据库）
+     * 用于 API 服务层，避免 LiveData 异步问题
+     * @return 任务列表
+     */
+    public List<Task> getAllTasks() {
+        logUtils.d(TAG, "📋 Getting all tasks (sync query)");
+        return taskDao.getAllTasks();
+    }
+    
+    /**
+     * 根据 ID 获取任务（同步）
+     * @param taskId 任务 ID
+     * @return 任务对象，不存在则返回 null
+     */
     public Task getTaskById(long taskId) { 
         logUtils.d(TAG, "🔍 Getting task by ID: " + taskId);
         return taskDao.getTaskById(taskId); 
     }
     
+    /**
+     * 根据 ID 获取任务（LiveData 响应式）
+     * @param taskId 任务 ID
+     * @return 可观察的任务对象
+     */
     public LiveData<Task> getTaskByIdLive(long taskId) { 
         logUtils.d(TAG, "🔍 Getting live data for task ID: " + taskId);
         return taskDao.getTaskByIdLive(taskId); 
     }
     
+    /**
+     * 根据状态获取任务（LiveData 响应式）
+     * @param status 状态 ID
+     * @return 可观察的任务列表
+     */
     public LiveData<List<Task>> getTasksByStatusLive(int status) { 
         logUtils.d(TAG, "📋 Getting tasks by status: " + status);
         return taskDao.getTasksByStatusLive(status); 
     }
     
+    /**
+     * 获取未完成任务（LiveData 响应式）
+     * @return 可观察的未完成任务列表
+     */
     public LiveData<List<Task>> getIncompleteTasksLive() { 
         logUtils.d(TAG, "📋 Returning incomplete tasks live data");
         return taskDao.getIncompleteTasksLive(); 
     }
     
+    /**
+     * 搜索任务（LiveData 响应式）
+     * @param keyword 搜索关键词
+     * @return 可观察的任务列表
+     */
     public LiveData<List<Task>> searchTasksLive(String keyword) { 
         logUtils.d(TAG, "🔍 Searching tasks with keyword: " + keyword);
         return taskDao.searchTasksLive(keyword); 
     }
     
+    /**
+     * 根据项目 ID 获取任务（LiveData 响应式）
+     * @param projectId 项目 ID
+     * @return 可观察的任务列表
+     */
     public LiveData<List<Task>> getTasksByProjectLive(long projectId) { 
         logUtils.d(TAG, "📋 Getting tasks for project ID: " + projectId);
         return taskDao.getTasksByProject(projectId); 
     }
     
+    /**
+     * 获取任务总数
+     * @return 任务数量
+     */
     public int getTaskCount() { 
         logUtils.d(TAG, "📊 Getting total task count");
         return taskDao.getTaskCount(); 
