@@ -85,6 +85,37 @@ public class JoyManApiService extends NanoHTTPD {
         return normalized;
     }
     
+    /**
+     * 清理 Chunked Encoding 数据
+     * NanoHTTPD 的 parseBody() 可能返回包含 Chunked 帧头的数据
+     * 例如："a2\r\n{...}\r\n0\n"
+     * 需要提取纯 JSON 内容
+     */
+    private String cleanChunkedData(String data) {
+        if (data == null || data.isEmpty()) {
+            return data;
+        }
+        
+        // 尝试查找第一个 '{' 或 '[' 的位置（JSON 开始）
+        int jsonStart = Math.max(data.indexOf('{'), data.indexOf('['));
+        if (jsonStart < 0) {
+            logUtils.w(TAG, "cleanChunkedData: No JSON start found in data");
+            return data;
+        }
+        
+        // 尝试查找最后一个 '}' 或 ']' 的位置（JSON 结束）
+        int jsonEnd = Math.max(data.lastIndexOf('}'), data.lastIndexOf(']'));
+        if (jsonEnd < jsonStart) {
+            logUtils.w(TAG, "cleanChunkedData: No JSON end found in data");
+            return data.substring(jsonStart);
+        }
+        
+        String jsonContent = data.substring(jsonStart, jsonEnd + 1);
+        logUtils.d(TAG, "cleanChunkedData: Extracted JSON from chunked data (" + jsonContent.length() + " chars)");
+        
+        return jsonContent;
+    }
+    
     @Override
     public Response serve(IHTTPSession session) {
         String uri = session.getUri();
@@ -120,7 +151,7 @@ public class JoyManApiService extends NanoHTTPD {
             response = handleProjects(session, method);
         } else if (normalizedUri.equals("/") || normalizedUri.equals("")) {
             response = createCorsResponse(Response.Status.OK, "application/json", 
-                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.6\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
+                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.7\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
         } else {
             response = createCorsResponse(Response.Status.NOT_FOUND, "text/plain", "Not Found");
             logUtils.w(TAG, "Unknown endpoint: " + normalizedUri);
@@ -180,6 +211,8 @@ public class JoyManApiService extends NanoHTTPD {
                     "{\"error\":\"No data provided\"}");
             }
             
+            // 清理 Chunked Encoding 数据
+            postData = cleanChunkedData(postData);
             logUtils.d(TAG, "updateIssue: Received data: " + postData);
             
             Task existingTask = taskRepository.getTaskById(issueId);
@@ -420,6 +453,8 @@ public class JoyManApiService extends NanoHTTPD {
                 "{\"error\":\"No data provided\"}");
         }
         
+        // 清理 Chunked Encoding 数据
+        postData = cleanChunkedData(postData);
         logUtils.d(TAG, "createIssue: Received data: " + postData);
         
         Task newTask = ApiJsonConverter.parseIssueJson(postData);
@@ -486,6 +521,8 @@ public class JoyManApiService extends NanoHTTPD {
                 "{\"error\":\"No data provided\"}");
         }
         
+        // 清理 Chunked Encoding 数据
+        postData = cleanChunkedData(postData);
         logUtils.d(TAG, "createProject: Received data: " + postData);
         
         String jsonResponse = "{\"project\":{\"id\":0,\"message\":\"TODO: Implement project creation\"}}";
