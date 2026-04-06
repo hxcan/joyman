@@ -120,7 +120,7 @@ public class JoyManApiService extends NanoHTTPD {
             response = handleProjects(session, method);
         } else if (normalizedUri.equals("/") || normalizedUri.equals("")) {
             response = createCorsResponse(Response.Status.OK, "application/json", 
-                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.5\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
+                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.6\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
         } else {
             response = createCorsResponse(Response.Status.NOT_FOUND, "text/plain", "Not Found");
             logUtils.w(TAG, "Unknown endpoint: " + normalizedUri);
@@ -351,10 +351,13 @@ public class JoyManApiService extends NanoHTTPD {
             ", status_id=" + statusId + ", query=" + query + 
             ", limit=" + limit + ", offset=" + offset + ", sort=" + sort);
         
-        List<Task> allTasks = taskRepository.getAllTasksLive().getValue();
+        // 修复：使用同步方法直接查询数据库，避免 LiveData 异步问题
+        List<Task> allTasks = taskRepository.getAllTasks();
         if (allTasks == null) {
             allTasks = new ArrayList<>();
         }
+        
+        logUtils.d(TAG, "getIssues: Retrieved " + allTasks.size() + " tasks from database (sync query)");
         
         List<Task> filteredTasks = allTasks.stream()
             .filter(task -> {
@@ -450,10 +453,13 @@ public class JoyManApiService extends NanoHTTPD {
     private Response getProjects(IHTTPSession session) {
         logUtils.d(TAG, "getProjects: Listing all projects");
         
-        List<Project> projects = projectRepository.getAllProjectsLive().getValue();
+        // 修复：使用同步方法直接查询数据库，避免 LiveData 异步问题
+        List<Project> projects = projectRepository.getAllProjects();
         if (projects == null) {
             projects = new ArrayList<>();
         }
+        
+        logUtils.d(TAG, "getProjects: Retrieved " + projects.size() + " projects from database (sync query)");
         
         JsonObject responseJson = ApiJsonConverter.projectsToJson(projects);
         
