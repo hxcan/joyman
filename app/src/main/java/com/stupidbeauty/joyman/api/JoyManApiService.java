@@ -72,6 +72,19 @@ public class JoyManApiService extends NanoHTTPD {
         logUtils.i(TAG, "setAdminCredentials: Admin username updated to " + username);
     }
     
+    /**
+     * 规范化 URI：去除前导斜杠
+     * 例如："/projects.json" → "projects.json"
+     */
+    private String normalizeUri(String uri) {
+        if (uri == null || uri.isEmpty()) {
+            return uri;
+        }
+        String normalized = uri.startsWith("/") ? uri.substring(1) : uri;
+        logUtils.d(TAG, "normalizeUri: \"" + uri + "\" → \"" + normalized + "\"");
+        return normalized;
+    }
+    
     @Override
     public Response serve(IHTTPSession session) {
         String uri = session.getUri();
@@ -84,9 +97,12 @@ public class JoyManApiService extends NanoHTTPD {
             return createCorsResponse(Response.Status.OK, "text/plain", "");
         }
         
-        if (!uri.equals("/") && !uri.equals("")) {
+        // 规范化 URI（去除前导斜杠）
+        String normalizedUri = normalizeUri(uri);
+        
+        if (!normalizedUri.equals("/") && !normalizedUri.equals("")) {
             if (!authenticate(session)) {
-                logUtils.w(TAG, "Authentication failed for " + uri);
+                logUtils.w(TAG, "Authentication failed for " + normalizedUri);
                 return createCorsResponse(Response.Status.UNAUTHORIZED, "application/json", 
                     "{\"error\":\"Invalid or missing credentials\"}");
             }
@@ -94,20 +110,20 @@ public class JoyManApiService extends NanoHTTPD {
         
         Response response;
         
-        Matcher matcher = ISSUE_ID_PATTERN.matcher(uri);
+        Matcher matcher = ISSUE_ID_PATTERN.matcher(normalizedUri);
         if (matcher.matches()) {
             long issueId = Long.parseLong(matcher.group(1));
             response = handleSingleIssue(session, method, issueId);
-        } else if (uri.startsWith("issues.json")) {
+        } else if (normalizedUri.startsWith("issues.json")) {
             response = handleIssues(session, method);
-        } else if (uri.startsWith("projects.json")) {
+        } else if (normalizedUri.startsWith("projects.json")) {
             response = handleProjects(session, method);
-        } else if (uri.equals("/") || uri.equals("")) {
+        } else if (normalizedUri.equals("/") || normalizedUri.equals("")) {
             response = createCorsResponse(Response.Status.OK, "application/json", 
-                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.4\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
+                "{\"message\":\"JoyMan API Server\",\"version\":\"1.0.5\",\"auth\":\"HTTP Basic Auth\",\"endpoints\":[\"/issues.json\",\"/issues/:id.json\",\"/projects.json\"]}");
         } else {
             response = createCorsResponse(Response.Status.NOT_FOUND, "text/plain", "Not Found");
-            logUtils.w(TAG, "Unknown endpoint: " + uri);
+            logUtils.w(TAG, "Unknown endpoint: " + normalizedUri);
         }
         
         return response;
