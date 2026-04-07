@@ -213,9 +213,6 @@ public class JoyManApiService extends NanoHTTPD {
             responseJson.add("children", childrenArray);
             logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
         }
-            responseJson.add("children", childrenJson);
-            logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
-        }
 
         return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
     }
