@@ -250,7 +250,9 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         String title = task.getTitle();
         if (title == null || title.isEmpty()) return;
         
+        // 添加任务编号前缀
         StringBuilder copyContent = new StringBuilder();
+        copyContent.append("#").append(task.getId()).append(" ");
         if (task.getProjectId() != null && projectList != null) {
             for (Project p : projectList) {
                 if (p != null && p.getId() == task.getProjectId()) {
