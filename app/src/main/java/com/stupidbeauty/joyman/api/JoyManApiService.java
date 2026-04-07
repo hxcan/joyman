@@ -137,7 +137,7 @@ public class JoyManApiService extends NanoHTTPD {
             }
         } catch (Exception e) {
             logUtils.e(TAG, "serve: Error handling request", e);
-            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error\"}");
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: " + e.getMessage() + "\"}");
         }
     }
 
@@ -330,21 +330,52 @@ public class JoyManApiService extends NanoHTTPD {
         return valid;
     }
 
+    /**
+     * 安全解析整数参数，支持空值和默认值
+     */
+    private int parseIntSafe(String value, int defaultValue) {
+        if (value == null || value.isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            logUtils.w(TAG, "parseIntSafe: Invalid value '" + value + "', using default " + defaultValue);
+            return defaultValue;
+        }
+    }
+
     private Response getIssues(IHTTPSession session) {
         logUtils.d(TAG, "getIssues: Listing all issues");
 
         Map<String, String> params = session.getParms();
-        String projectIdStr = params.get("project_id");
-        String statusIdStr = params.get("status_id");
+        
+        // 使用安全的解析方法，避免 NumberFormatException
+        int limit = parseIntSafe(params.get("limit"), 25);
+        int offset = parseIntSafe(params.get("offset"), 0);
+        Long projectId = null;
+        Integer statusId = null;
+        
+        try {
+            String projectIdStr = params.get("project_id");
+            if (projectIdStr != null && !projectIdStr.isEmpty()) {
+                projectId = Long.parseLong(projectIdStr);
+            }
+        } catch (NumberFormatException e) {
+            logUtils.w(TAG, "getIssues: Invalid project_id: " + params.get("project_id"));
+        }
+        
+        try {
+            String statusIdStr = params.get("status_id");
+            if (statusIdStr != null && !statusIdStr.isEmpty()) {
+                statusId = Integer.parseInt(statusIdStr);
+            }
+        } catch (NumberFormatException e) {
+            logUtils.w(TAG, "getIssues: Invalid status_id: " + params.get("status_id"));
+        }
+        
         String query = params.get("query");
-        String limitStr = params.get("limit");
-        String offsetStr = params.get("offset");
         String sort = params.get("sort");
-
-        int limit = limitStr != null ? Integer.parseInt(limitStr) : 25;
-        int offset = offsetStr != null ? Integer.parseInt(offsetStr) : 0;
-        Long projectId = projectIdStr != null ? Long.parseLong(projectIdStr) : null;
-        Integer statusId = statusIdStr != null ? Integer.parseInt(statusIdStr) : null;
 
         logUtils.d(TAG, "getIssues: Filters - project_id=" + projectId + ", status_id=" + statusId + ", query=" + query + ", limit=" + limit + ", offset=" + offset + ", sort=" + sort);
 
