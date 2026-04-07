@@ -209,7 +209,10 @@ public class JoyManApiService extends NanoHTTPD {
             if (subtasks == null) {
                 subtasks = new ArrayList<>();
             }
-            JsonObject childrenJson = ApiJsonConverter.tasksToIssuesJson(subtasks, subtasks.size(), 0, subtasks.size()).getAsJsonObject("issues");
+            JsonArray childrenArray = ApiJsonConverter.tasksToIssuesJson(subtasks, subtasks.size(), 0, subtasks.size()).getAsJsonArray("issues");
+            responseJson.add("children", childrenArray);
+            logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
+        }
             responseJson.add("children", childrenJson);
             logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
         }
