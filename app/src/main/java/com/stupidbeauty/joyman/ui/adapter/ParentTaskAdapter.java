@@ -14,18 +14,10 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
 import java.util.ArrayList;
 import java.util.List;
 
-
-/**
- * 父任务选择对话框中的任务列表适配器
- * 
- * @author 太极美术工程狮狮长
- * @version 1.0.1
- * @since 2026-04-07
- */
 public class ParentTaskAdapter extends RecyclerView.Adapter<ParentTaskAdapter.ViewHolder> {
     
     private List<Task> tasks;
-    private final long currentTaskId; // 当前任务 ID，用于排除自身
+    private final long currentTaskId;
     private OnTaskClickListener listener;
     
     public interface OnTaskClickListener {
@@ -53,20 +45,14 @@ public class ParentTaskAdapter extends RecyclerView.Adapter<ParentTaskAdapter.Vi
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Task task = tasks.get(position);
         
-        // 格式化任务 ID 显示（截断长编号）
         String taskIdStr = String.valueOf(task.getId());
-        String displayId;
-        if (taskIdStr.length() > 8) {
-            // 显示后 8 位
-            displayId = "... " + taskIdStr.substring(taskIdStr.length() - 8);
-        } else {
-            displayId = "#" + taskIdStr;
-        }
+        String displayId = (taskIdStr.length() > 8) 
+            ? "... " + taskIdStr.substring(taskIdStr.length() - 8)
+            : "#" + taskIdStr;
         
         holder.textTaskId.setText(displayId);
         holder.textTaskTitle.setText(task.getTitle());
         
-        // 点击事件
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onTaskClick(task);
