@@ -5,10 +5,14 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -36,15 +40,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-
-
+import java.util.stream.Collectors;
 
 
 /**
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.15
+ * @version 1.0.16
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdapter.OnSubtaskClickListener {
@@ -79,11 +82,13 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     // 父任务相关
     private CardView cardParentTask;
     private TextView textParentTaskTitle;
+    private Button btnLinkParentTask;
     
     private List<Project> projectList;
     private Long pendingProjectId;   // 暂存待保存的项目 ID
     private Integer pendingStatusId; // 暂存待保存的状态 ID
     private String pendingDescription; // 暂存待保存的描述
+    private Long pendingParentId; // 暂存待保存的父任务 ID
     
     // 状态列表数据
     private int[] statusIds;
@@ -174,6 +179,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         // 父任务相关视图
         cardParentTask = findViewById(R.id.card_parent_task);
         textParentTaskTitle = findViewById(R.id.text_parent_task_title);
+        btnLinkParentTask = findViewById(R.id.btn_link_parent_task);
         
         // 初始化子任务列表
         recyclerViewSubtasks.setLayoutManager(new LinearLayoutManager(this));
@@ -187,6 +193,9 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         // 设置创建子任务按钮点击事件
         btnCreateSubtask.setOnClickListener(v -> showCreateSubtaskDialog());
         
+        // 设置关联父任务按钮点击事件
+        btnLinkParentTask.setOnClickListener(v -> showParentTaskSelectorDialog());
+        
         // 设置父任务卡片点击事件
         cardParentTask.setOnClickListener(v -> {
             if (task != null && task.getParentId() != null) {
@@ -197,7 +206,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         });
         
         // 监听描述变化
-        editDetailDescription.addTextChangedListener(new android.text.TextWatcher() {
+        editDetailDescription.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             
@@ -216,7 +225,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             }
             
             @Override
-            public void afterTextChanged(android.text.Editable s) {}
+            public void afterTextChanged(Editable s) {}
         });
         
         // 初始化状态下拉框
@@ -293,7 +302,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
      * 更新保存按钮的可用状态
      */
     private void updateSaveButtonState() {
-        boolean hasChanges = (pendingStatusId != null || pendingProjectId != null || pendingDescription != null);
+        boolean hasChanges = (pendingStatusId != null || pendingProjectId != null || pendingDescription != null || pendingParentId != null);
         btnSaveChanges.setEnabled(hasChanges);
         btnSaveChanges.setAlpha(hasChanges ? 1.0f : 0.5f);
         
@@ -308,6 +317,9 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             }
             if (pendingDescription != null) {
                 changes.add("描述");
+            }
+            if (pendingParentId != null) {
+                changes.add("父任务");
             }
             hint.append(String.join(",", changes));
             ((TextView) btnSaveChanges).setText(hint.toString());
@@ -371,6 +383,153 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             toastMessage += " 和描述";
         }
         Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show();
+    }
+    
+    /**
+     * 显示父任务选择对话框
+     * 显示同项目下打开状态的任务列表，支持搜索过滤
+     */
+    private void showParentTaskSelectorDialog() {
+        if (task == null) {
+            Toast.makeText(this, "任务数据未加载", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        LogUtils.getInstance().d(TAG, "showParentTaskSelectorDialog: Showing parent task selector");
+        
+        // 获取同项目下打开状态的任务
+        List<Task> availableTasks = new ArrayList<>();
+        
+        // 同步获取所有任务（需要从数据库查询）
+        // 这里我们使用 DAO 的同步方法
+        List<Task> allTasks = taskViewModel.getTaskDao().getAllTasks();
+        
+        if (allTasks != null) {
+            int openStatus = Task.STATUS_NEW;
+            Long currentProjectId = task.getProjectId();
+            
+            for (Task t : allTasks) {
+                // 过滤条件：
+                // 1. 不是自身
+                // 2. 状态为打开（新建/进行中）
+                // 3. 同项目（或当前任务没有项目）
+                if (t.getId() != taskId) {
+                    boolean isOpenStatus = (t.getStatus() == openStatus || t.getStatus() == Task.STATUS_IN_PROGRESS);
+                    boolean isSameProject = (currentProjectId == null && t.getProjectId() == null) ||
+                                           (currentProjectId != null && currentProjectId.equals(t.getProjectId())) ||
+                                           (currentProjectId == null);
+                    
+                    if (isOpenStatus && isSameProject) {
+                        availableTasks.add(t);
+                    }
+                }
+            }
+        }
+        
+        if (availableTasks.isEmpty()) {
+            Toast.makeText(this, "没有可选的上级任务", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 创建对话框布局
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_parent_task_selector, null);
+        
+        EditText editSearch = dialogView.findViewById(R.id.edit_parent_task_search);
+        RecyclerView recyclerView = dialogView.findViewById(R.id.recycler_view_parent_tasks);
+        TextView textNoTasks = dialogView.findViewById(R.id.text_no_parent_tasks);
+        
+        // 保存原始列表和过滤后列表
+        final List<Task> filteredTasks = new ArrayList<>(availableTasks);
+        
+        // 设置 RecyclerView
+        ParentTaskAdapter adapter = new ParentTaskAdapter(filteredTasks, taskId);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(adapter);
+        
+        // 搜索过滤
+        editSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String keyword = s.toString().toLowerCase().trim();
+                filteredTasks.clear();
+                
+                if (keyword.isEmpty()) {
+                    filteredTasks.addAll(availableTasks);
+                } else {
+                    for (Task t : availableTasks) {
+                        String taskIdStr = String.valueOf(t.getId());
+                        String title = t.getTitle() != null ? t.getTitle().toLowerCase() : "";
+                        
+                        if (taskIdStr.contains(keyword) || title.contains(keyword)) {
+                            filteredTasks.add(t);
+                        }
+                    }
+                }
+                
+                adapter.notifyDataSetChanged();
+                
+                // 显示/隐藏空提示
+                if (filteredTasks.isEmpty()) {
+                    recyclerView.setVisibility(View.GONE);
+                    textNoTasks.setVisibility(View.VISIBLE);
+                } else {
+                    recyclerView.setVisibility(View.VISIBLE);
+                    textNoTasks.setVisibility(View.GONE);
+                }
+            }
+            
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+        
+        builder.setTitle("选择上级任务")
+            .setView(dialogView)
+            .setPositiveButton("清除父任务", (dialog, which) -> {
+                // 清除父任务关联
+                pendingParentId = -1L; // -1 表示清除
+                updateSaveButtonState();
+                Toast.makeText(this, "已清除父任务关联", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("取消", null);
+        
+        AlertDialog dialog = builder.create();
+        dialog.show();
+        
+        // 设置选择监听
+        adapter.setOnTaskClickListener(selectedTask -> {
+            pendingParentId = selectedTask.getId();
+            updateSaveButtonState();
+            Toast.makeText(this, "已选择：" + selectedTask.getTitle(), Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+    }
+    
+    /**
+     * 加载父任务信息，控制按钮/卡片显示
+     */
+    private void loadParentTaskInfo() {
+        if (task == null) {
+            cardParentTask.setVisibility(View.GONE);
+            btnLinkParentTask.setVisibility(View.GONE);
+            return;
+        }
+        
+        Long parentId = task.getParentId();
+        
+        if (parentId == null) {
+            // 没有父任务，显示关联按钮
+            cardParentTask.setVisibility(View.GONE);
+            btnLinkParentTask.setVisibility(View.VISIBLE);
+        } else {
+            // 有父任务，显示父任务卡片
+            btnLinkParentTask.setVisibility(View.GONE);
+            loadParentTask();
+        }
     }
     
     /**
@@ -553,10 +712,11 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             pendingStatusId = null;
             pendingProjectId = null;
             pendingDescription = null;
+            pendingParentId = null;
             LogUtils.getInstance().d(TAG, "loadTask: Task loaded - ID: " + task.getId() + ", title: " + task.getTitle() + ", projectId: " + task.getProjectId() + ", status: " + task.getStatus() + ", parentId: " + task.getParentId());
             updateUI();
             updateSaveButtonState();
-            loadParentTask();
+            loadParentTaskInfo();
         });
     }
     
@@ -598,7 +758,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     }
     
     /**
-     * 保存所有待处理的变更（状态 + 项目 + 描述）
+     * 保存所有待处理的变更（状态 + 项目 + 描述 + 父任务）
      */
     private void saveAllChanges() {
         LogUtils.getInstance().d(TAG, "=================================================================");
@@ -651,6 +811,23 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
             hasChanges = true;
         }
         
+        // 保存父任务变更
+        if (pendingParentId != null) {
+            LogUtils.getInstance().i(TAG, "saveAllChanges: Saving parent: " + pendingParentId);
+            
+            if (pendingParentId == -1L) {
+                // 清除父任务
+                task.setParentId(null);
+                savedItems.add("清除父任务");
+            } else {
+                task.setParentId(pendingParentId);
+                savedItems.add("设置父任务");
+            }
+            
+            pendingParentId = null;
+            hasChanges = true;
+        }
+        
         if (!hasChanges) {
             LogUtils.getInstance().d(TAG, "saveAllChanges: No changes detected");
             Toast.makeText(this, "没有需要保存的更改", Toast.LENGTH_SHORT).show();
@@ -665,6 +842,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         
         updateUI();
         updateSaveButtonState();
+        loadParentTaskInfo();
         
         LogUtils.getInstance().d(TAG, "saveAllChanges: END - Saved: " + String.join(", ", savedItems));
         LogUtils.getInstance().d(TAG, "=================================================================");
