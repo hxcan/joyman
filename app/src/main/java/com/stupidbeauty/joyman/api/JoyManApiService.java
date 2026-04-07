@@ -216,7 +216,6 @@ public class JoyManApiService extends NanoHTTPD {
 
         return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
     }
-    }
 
     private Response updateIssue(IHTTPSession session, long issueId) {
         logUtils.d(TAG, "updateIssue: Updating issue " + issueId);
