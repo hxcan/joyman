@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 搜索框（可选） -->
+    <EditText
+        android:id="@+id/edit_parent_task_search"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="输入编号或标题关键词过滤"
+        android:inputType="text"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp"
+        android:background="?android:attr/editTextBackground" />
+
+    <!-- 任务列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view_parent_tasks"
+        android:layout_width="match_parent"
+        android:layout_height="300dp" />
+
+    <!-- 空状态提示 -->
+    <TextView
+        android:id="@+id/text_no_parent_tasks"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="没有可选的上级任务"
+        android:textSize="14sp"
+        android:textColor="?android:attr/textColorTertiary"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone" />
+
+</LinearLayout>

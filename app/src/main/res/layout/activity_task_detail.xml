@@ -59,70 +59,88 @@
 
             </LinearLayout>
 
-            <!-- 父任务信息卡片（仅当有父任务时显示） -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/card_parent_task"
+            <!-- 父任务区域 -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="?attr/colorSurface"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                android:visibility="gone">
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp">
 
-                <LinearLayout
+                <!-- 父任务信息卡片（仅当有父任务时显示） -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/card_parent_task"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:gravity="center_vertical">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@android:drawable/ic_menu_revert"
-                        android:contentDescription="父任务"
-                        android:layout_marginEnd="8dp" />
+                    app:cardCornerRadius="8dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:visibility="gone">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:orientation="horizontal"
+                        android:padding="12dp"
+                        android:gravity="center_vertical">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="父任务"
-                            android:textSize="12sp"
-                            android:textColor="?android:attr/textColorSecondary" />
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@android:drawable/ic_menu_revert"
+                            android:contentDescription="父任务"
+                            android:layout_marginEnd="8dp" />
 
-                        <TextView
-                            android:id="@+id/text_parent_task_title"
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:textColor="?android:attr/textColorPrimary"
-                            android:maxLines="1"
-                            android:ellipsize="end"
-                            android:text="父任务标题" />
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="父任务"
+                                android:textSize="12sp"
+                                android:textColor="?android:attr/textColorSecondary" />
+
+                            <TextView
+                                android:id="@+id/text_parent_task_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:textColor="?android:attr/textColorPrimary"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                android:text="父任务标题" />
+
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@android:drawable/ic_menu_more"
+                            android:contentDescription="查看详情"
+                            android:layout_marginStart="8dp" />
 
                     </LinearLayout>
 
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@android:drawable/ic_menu_more"
-                        android:contentDescription="查看详情"
-                        android:layout_marginStart="8dp" />
+                </com.google.android.material.card.MaterialCardView>
 
-                </LinearLayout>
+                <!-- 关联父任务按钮（仅当没有父任务时显示） -->
+                <Button
+                    android:id="@+id/btn_link_parent_task"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="关联上级任务"
+                    android:backgroundTint="#FF9800"
+                    android:visibility="gone"
+                    android:layout_marginTop="8dp" />
 
-            </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
             <!-- 任务描述（可编辑） -->
             <TextView
