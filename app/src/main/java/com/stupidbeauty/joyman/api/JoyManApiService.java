@@ -200,7 +200,22 @@ public class JoyManApiService extends NanoHTTPD {
         JsonObject responseJson = new JsonObject();
         responseJson.add("issue", issueJson);
 
+        // 支持 include=children 参数，返回子任务列表
+        Map<String, String> params = session.getParms();
+        String include = params.get("include");
+        if ("children".equals(include)) {
+            logUtils.d(TAG, "getIssue: include=children requested, fetching subtasks");
+            List<Task> subtasks = taskRepository.getTaskDao().getSubtasksByParentId(issueId);
+            if (subtasks == null) {
+                subtasks = new ArrayList<>();
+            }
+            JsonObject childrenJson = ApiJsonConverter.tasksToIssuesJson(subtasks, subtasks.size(), 0, subtasks.size()).getAsJsonObject("issues");
+            responseJson.add("children", childrenJson);
+            logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
+        }
+
         return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
+    }
     }
 
     private Response updateIssue(IHTTPSession session, long issueId) {
