@@ -5,6 +5,7 @@ import android.content.Context;
 import android.util.Base64;
 import android.util.Log;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
@@ -211,9 +212,6 @@ public class JoyManApiService extends NanoHTTPD {
             }
             JsonArray childrenArray = ApiJsonConverter.tasksToIssuesJson(subtasks, subtasks.size(), 0, subtasks.size()).getAsJsonArray("issues");
             responseJson.add("children", childrenArray);
-            logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
-        }
-            responseJson.add("children", childrenJson);
             logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
         }
 
