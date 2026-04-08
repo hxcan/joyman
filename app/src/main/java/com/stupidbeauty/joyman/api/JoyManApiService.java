@@ -216,7 +216,16 @@ public class JoyManApiService extends NanoHTTPD {
         // 🔍 新增：打印完整的原始 URI 和 Query String
         logUtils.d(TAG, "serve: === 原始请求信息 START ===");
         logUtils.d(TAG, "serve: Raw URI: " + session.getUri());
-        logUtils.d(TAG, "serve: Query String: " + session.getQuery());
+        
+        // NanoHTTPD 没有 getQuery() 方法，需要从 URI 中解析
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0) {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "serve: Query String: " + queryString);
+        
         logUtils.d(TAG, "serve: Method: " + method);
         logUtils.d(TAG, "serve: Remote IP: " + session.getRemoteIpAddress());
         logUtils.d(TAG, "serve: === 原始请求信息 END ===");
@@ -526,8 +535,16 @@ public class JoyManApiService extends NanoHTTPD {
 
         // 🔍 调试：打印完整的请求参数
         logUtils.d(TAG, "getIssues: === 参数调试 START ===");
-        logUtils.d(TAG, "getIssues: Query String: " + session.getQuery());
-        logUtils.d(TAG, "getIssues: URI: " + session.getUri());
+        
+        // 从 URI 中解析 query string
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0) {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "getIssues: Query String: " + queryString);
+        logUtils.d(TAG, "getIssues: URI: " + fullUri);
         
         Map<String, String> params = session.getParms();
         logUtils.d(TAG, "getIssues: params size: " + (params != null ? params.size() : 0));
