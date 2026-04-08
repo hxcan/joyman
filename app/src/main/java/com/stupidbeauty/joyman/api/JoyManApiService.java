@@ -7,13 +7,17 @@ import android.util.Log;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.repository.ProjectRepository;
 import com.stupidbeauty.joyman.repository.TaskRepository;
 import com.stupidbeauty.joyman.util.LogUtils;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -100,6 +104,35 @@ public class JoyManApiService extends NanoHTTPD {
         }
 
         return data;
+    }
+
+    /**
+     * 备用方法：直接从 InputStream 读取请求体
+     */
+    private String readRequestBodyFromStream(IHTTPSession session) {
+        try {
+            Map<String, String> headers = session.getHeaders();
+            String contentLength = headers.get("content-length");
+            
+            if (contentLength != null) {
+                int len = Integer.parseInt(contentLength);
+                if (len > 0) {
+                    StringBuilder sb = new StringBuilder();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(session.getInputStream(), StandardCharsets.UTF_8));
+                    char[] buffer = new char[len];
+                    int read = reader.read(buffer);
+                    if (read > 0) {
+                        sb.append(buffer, 0, read);
+                    }
+                    reader.close();
+                    logUtils.d(TAG, "readRequestBodyFromStream: Read " + read + " bytes from input stream");
+                    return sb.toString();
+                }
+            }
+        } catch (Exception e) {
+            logUtils.e(TAG, "readRequestBodyFromStream: Error reading from stream", e);
+        }
+        return null;
     }
 
     @Override
@@ -220,16 +253,30 @@ public class JoyManApiService extends NanoHTTPD {
 
     private Response updateIssue(IHTTPSession session, long issueId) {
         logUtils.d(TAG, "updateIssue: Updating issue " + issueId);
+        
+        String postData = null;
         Map<String, String> files = new HashMap<>();
+        
+        // 首先尝试使用标准 parseBody 方法
         try {
             session.parseBody(files);
+            postData = files.get("postData");
+            logUtils.d(TAG, "updateIssue: parseBody got postData: " + (postData != null ? postData.substring(0, Math.min(100, postData.length())) + "..." : "null"));
         } catch (IOException | ResponseException e) {
-            logUtils.e(TAG, "updateIssue: Error reading request body", e);
-            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Failed to parse request body\"}");
+            logUtils.e(TAG, "updateIssue: parseBody failed", e);
+        }
+        
+        // 如果 parseBody 失败或没有获取到数据，尝试直接从流读取
+        if (postData == null || postData.isEmpty()) {
+            logUtils.d(TAG, "updateIssue: Trying to read from input stream directly");
+            postData = readRequestBodyFromStream(session);
+            if (postData != null) {
+                logUtils.d(TAG, "updateIssue: Got data from stream: " + postData.substring(0, Math.min(100, postData.length())) + "...");
+            }
         }
 
-        String postData = files.get("postData");
         if (postData == null || postData.isEmpty()) {
+            logUtils.e(TAG, "updateIssue: No data provided, postData is null or empty");
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
         }
 
@@ -238,31 +285,45 @@ public class JoyManApiService extends NanoHTTPD {
 
         Task existingTask = taskRepository.getTaskById(issueId);
         if (existingTask == null) {
+            logUtils.e(TAG, "updateIssue: Issue not found: " + issueId);
             return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Issue not found\"}");
         }
 
         try {
-            JsonObject requestJson = com.google.gson.JsonParser.parseString(postData).getAsJsonObject();
+            JsonObject requestJson = JsonParser.parseString(postData).getAsJsonObject();
             if (requestJson.has("issue")) {
                 JsonObject issueJson = requestJson.getAsJsonObject("issue");
 
                 if (issueJson.has("subject")) {
                     existingTask.setTitle(issueJson.get("subject").getAsString());
+                    logUtils.d(TAG, "updateIssue: Set subject to: " + existingTask.getTitle());
                 }
                 if (issueJson.has("description")) {
                     existingTask.setDescription(issueJson.get("description").getAsString());
                 }
                 if (issueJson.has("status_id")) {
                     existingTask.setStatus(issueJson.get("status_id").getAsInt());
+                    logUtils.d(TAG, "updateIssue: Set status_id to: " + existingTask.getStatus());
                 }
                 if (issueJson.has("priority")) {
                     existingTask.setPriority(issueJson.get("priority").getAsInt());
+                }
+                if (issueJson.has("priority_id")) {
+                    existingTask.setPriority(issueJson.get("priority_id").getAsInt());
+                    logUtils.d(TAG, "updateIssue: Set priority_id to: " + existingTask.getPriority());
                 }
                 if (issueJson.has("project_id")) {
                     existingTask.setProjectId(issueJson.get("project_id").getAsLong());
                 }
                 if (issueJson.has("parent_issue_id")) {
-                    existingTask.setParentId(issueJson.get("parent_issue_id").getAsLong());
+                    long parentId = issueJson.get("parent_issue_id").getAsLong();
+                    // 支持移除父任务（传入 0 或 null）
+                    if (parentId > 0) {
+                        existingTask.setParentId(parentId);
+                    } else {
+                        existingTask.setParentId(null);
+                    }
+                    logUtils.d(TAG, "updateIssue: Set parent_issue_id to: " + (existingTask.getParentId() != null ? existingTask.getParentId() : "null (removed)"));
                 }
             }
 
@@ -276,7 +337,7 @@ public class JoyManApiService extends NanoHTTPD {
             return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
         } catch (Exception e) {
             logUtils.e(TAG, "updateIssue: Error processing request", e);
-            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid request data\"}");
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid request data: " + e.getMessage() + "\"}");
         }
     }
 
@@ -365,11 +426,9 @@ public class JoyManApiService extends NanoHTTPD {
 
         Map<String, String> params = session.getParms();
         
-        // 使用安全的解析方法，避免 NumberFormatException
         int limit = parseIntSafe(params.get("limit"), 25);
         int offset = parseIntSafe(params.get("offset"), 0);
         
-        // 使用普通变量，在 try-catch 外赋值给 final 变量供 lambda 使用
         Long projectIdTmp = null;
         try {
             String projectIdStr = params.get("project_id");
@@ -449,15 +508,21 @@ public class JoyManApiService extends NanoHTTPD {
     private Response createIssue(IHTTPSession session) {
         logUtils.d(TAG, "createIssue: Creating new issue");
 
+        String postData = null;
         Map<String, String> files = new HashMap<>();
+        
         try {
             session.parseBody(files);
+            postData = files.get("postData");
         } catch (IOException | ResponseException e) {
-            logUtils.e(TAG, "createIssue: Error parsing request body", e);
-            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Failed to parse request body\"}");
+            logUtils.e(TAG, "createIssue: parseBody failed, trying stream", e);
+        }
+        
+        // 备用方案：从流直接读取
+        if (postData == null || postData.isEmpty()) {
+            postData = readRequestBodyFromStream(session);
         }
 
-        String postData = files.get("postData");
         if (postData == null || postData.isEmpty()) {
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
         }
@@ -511,15 +576,20 @@ public class JoyManApiService extends NanoHTTPD {
     private Response createProject(IHTTPSession session) {
         logUtils.d(TAG, "createProject: Creating new project");
 
+        String postData = null;
         Map<String, String> files = new HashMap<>();
+        
         try {
             session.parseBody(files);
+            postData = files.get("postData");
         } catch (IOException | ResponseException e) {
-            logUtils.e(TAG, "createProject: Error parsing request body", e);
-            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Failed to parse request body\"}");
+            logUtils.e(TAG, "createProject: parseBody failed", e);
+        }
+        
+        if (postData == null || postData.isEmpty()) {
+            postData = readRequestBodyFromStream(session);
         }
 
-        String postData = files.get("postData");
         if (postData == null || postData.isEmpty()) {
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
         }
@@ -533,21 +603,15 @@ public class JoyManApiService extends NanoHTTPD {
 
     /**
      * 创建 CORS 响应
-     * 修复：添加 Content-Length 和 Connection: close 头，解决 Chunked Encoding 导致的连接中断问题
      */
     private Response createCorsResponse(Response.Status status, String mimeType, String message) {
         Response response = newFixedLengthResponse(status, mimeType, message);
 
-        // 添加 CORS 头
         response.addHeader("Access-Control-Allow-Origin", "*");
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         response.addHeader("Access-Control-Max-Age", "86400");
-
-        // 修复 Chunked Encoding 问题：添加 Content-Length 头，避免依赖 Chunked Encoding
         response.addHeader("Content-Length", String.valueOf(message.getBytes().length));
-
-        // 添加 Connection: close 头，确保连接正确关闭
         response.addHeader("Connection", "close");
 
         return response;
