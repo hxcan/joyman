@@ -15,6 +15,7 @@ import com.stupidbeauty.joyman.repository.TaskRepository;
 import com.stupidbeauty.joyman.util.LogUtils;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -100,30 +101,109 @@ public class JoyManApiService extends NanoHTTPD {
         return data;
     }
 
+    /**
+     * 从输入流读取请求体（带详细调试日志）
+     */
     private String readRequestBodyFromStream(IHTTPSession session) {
+        logUtils.d(TAG, "readRequestBodyFromStream: === START ===");
+        
         try {
+            // 打印所有请求头
             Map<String, String> headers = session.getHeaders();
-            String contentLength = headers.get("content-length");
+            logUtils.d(TAG, "readRequestBodyFromStream: Headers count: " + (headers != null ? headers.size() : 0));
             
-            if (contentLength != null) {
-                int len = Integer.parseInt(contentLength);
-                if (len > 0) {
-                    StringBuilder sb = new StringBuilder();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(session.getInputStream(), StandardCharsets.UTF_8));
-                    char[] buffer = new char[len];
-                    int read = reader.read(buffer);
-                    if (read > 0) {
-                        sb.append(buffer, 0, read);
-                    }
-                    reader.close();
-                    logUtils.d(TAG, "readRequestBodyFromStream: Read " + read + " bytes from input stream");
-                    return sb.toString();
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    logUtils.d(TAG, "readRequestBodyFromStream: Header[" + entry.getKey() + "] = " + entry.getValue());
                 }
             }
+            
+            String contentLength = headers != null ? headers.get("content-length") : null;
+            logUtils.d(TAG, "readRequestBodyFromStream: Content-Length = " + contentLength);
+            
+            // 打印其他相关信息
+            logUtils.d(TAG, "readRequestBodyFromStream: Method = " + session.getMethod());
+            logUtils.d(TAG, "readRequestBodyFromStream: URI = " + session.getUri());
+            
+            // 尝试获取输入流
+            logUtils.d(TAG, "readRequestBodyFromStream: Trying to get input stream...");
+            
+            if (contentLength != null && !contentLength.isEmpty()) {
+                int len = Integer.parseInt(contentLength);
+                logUtils.d(TAG, "readRequestBodyFromStream: Content-Length parsed as " + len + " bytes");
+                
+                if (len > 0) {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[len];
+                    int totalRead = 0;
+                    
+                    try {
+                        int nRead;
+                        while ((nRead = session.getInputStream().read(data, 0, len)) != -1) {
+                            buffer.write(data, 0, nRead);
+                            totalRead += nRead;
+                            logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                            
+                            if (totalRead >= len) {
+                                break;
+                            }
+                        }
+                        
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success) ===");
+                        return result;
+                        
+                    } catch (Exception e) {
+                        logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream", e);
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (error) ===");
+                        return null;
+                    }
+                } else {
+                    logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is 0, no data to read");
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (zero length) ===");
+                    return null;
+                }
+            } else {
+                logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is null or empty, trying to read anyway...");
+                
+                // 即使没有 Content-Length 也尝试读取
+                try {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[1024];
+                    int nRead;
+                    int totalRead = 0;
+                    
+                    while ((nRead = session.getInputStream().read(data, 0, 1024)) != -1) {
+                        buffer.write(data, 0, nRead);
+                        totalRead += nRead;
+                        logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                    }
+                    
+                    if (totalRead > 0) {
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes (no Content-Length)");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success, no CL) ===");
+                        return result;
+                    } else {
+                        logUtils.w(TAG, "readRequestBodyFromStream: No data read from stream");
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (no data) ===");
+                        return null;
+                    }
+                } catch (Exception e) {
+                    logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream without Content-Length", e);
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (error, no CL) ===");
+                    return null;
+                }
+            }
+            
         } catch (Exception e) {
-            logUtils.e(TAG, "readRequestBodyFromStream: Error reading from stream", e);
+            logUtils.e(TAG, "readRequestBodyFromStream: Unexpected error", e);
+            logUtils.d(TAG, "readRequestBodyFromStream: === END (unexpected error) ===");
+            return null;
         }
-        return null;
     }
 
     @Override
@@ -132,6 +212,17 @@ public class JoyManApiService extends NanoHTTPD {
         Method method = session.getMethod();
 
         logUtils.i(TAG, "Request: " + method + " " + uri + " from " + session.getRemoteIpAddress());
+
+        // 打印所有请求头（用于调试）
+        if (method.equals(Method.PUT) || method.equals(Method.POST)) {
+            Map<String, String> headers = session.getHeaders();
+            if (headers != null) {
+                logUtils.d(TAG, "serve: Request headers for " + method + " " + uri + ":");
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    logUtils.d(TAG, "  " + entry.getKey() + ": " + entry.getValue());
+                }
+            }
+        }
 
         if (Method.OPTIONS.equals(method)) {
             logUtils.d(TAG, "serve: Handling OPTIONS preflight request");
@@ -239,29 +330,34 @@ public class JoyManApiService extends NanoHTTPD {
     }
 
     private Response updateIssue(IHTTPSession session, long issueId) {
-        logUtils.d(TAG, "updateIssue: Updating issue " + issueId);
+        logUtils.d(TAG, "updateIssue: === START Updating issue " + issueId + " ===");
         
         String postData = null;
         Map<String, String> files = new HashMap<>();
         
         try {
+            logUtils.d(TAG, "updateIssue: Calling session.parseBody()...");
             session.parseBody(files);
             postData = files.get("postData");
             logUtils.d(TAG, "updateIssue: parseBody got postData: " + (postData != null ? (postData.length() > 100 ? postData.substring(0, 100) + "..." : postData) : "null"));
+            logUtils.d(TAG, "updateIssue: parseBody files keys: " + (files != null ? files.keySet() : "null"));
         } catch (IOException | ResponseException e) {
             logUtils.e(TAG, "updateIssue: parseBody failed", e);
         }
         
         if (postData == null || postData.isEmpty()) {
-            logUtils.d(TAG, "updateIssue: Trying to read from input stream directly");
+            logUtils.d(TAG, "updateIssue: parseBody returned null/empty, trying input stream...");
             postData = readRequestBodyFromStream(session);
             if (postData != null) {
                 logUtils.d(TAG, "updateIssue: Got data from stream: " + (postData.length() > 100 ? postData.substring(0, 100) + "..." : postData));
+            } else {
+                logUtils.e(TAG, "updateIssue: readRequestBodyFromStream also returned null");
             }
         }
 
         if (postData == null || postData.isEmpty()) {
-            logUtils.e(TAG, "updateIssue: No data provided");
+            logUtils.e(TAG, "updateIssue: No data provided after all attempts");
+            logUtils.d(TAG, "updateIssue: === END (failure: no data) ===");
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
         }
 
@@ -271,6 +367,7 @@ public class JoyManApiService extends NanoHTTPD {
         Task existingTask = taskRepository.getTaskById(issueId);
         if (existingTask == null) {
             logUtils.e(TAG, "updateIssue: Issue not found: " + issueId);
+            logUtils.d(TAG, "updateIssue: === END (failure: not found) ===");
             return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Issue not found\"}");
         }
 
@@ -313,6 +410,7 @@ public class JoyManApiService extends NanoHTTPD {
 
             taskRepository.update(existingTask);
             logUtils.i(TAG, "updateIssue: Updated issue " + issueId);
+            logUtils.d(TAG, "updateIssue: === END (success) ===");
 
             JsonObject responseIssueJson = ApiJsonConverter.taskToIssueJson(existingTask, null);
             JsonObject responseJson = new JsonObject();
@@ -321,6 +419,7 @@ public class JoyManApiService extends NanoHTTPD {
             return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
         } catch (Exception e) {
             logUtils.e(TAG, "updateIssue: Error processing request", e);
+            logUtils.d(TAG, "updateIssue: === END (error) ===");
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid request data: " + e.getMessage() + "\"}");
         }
     }
