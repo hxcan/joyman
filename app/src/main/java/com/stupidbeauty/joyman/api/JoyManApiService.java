@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 import fi.iki.elonen.NanoHTTPD;
 
 /**
- * JoyMan REST API 服务器
+ * JoyMan REST API 服务器 - 带详细调试日志
  */
 public class JoyManApiService extends NanoHTTPD {
     private static final String TAG = "JoyManApiService";
@@ -212,6 +212,23 @@ public class JoyManApiService extends NanoHTTPD {
         Method method = session.getMethod();
 
         logUtils.i(TAG, "Request: " + method + " " + uri + " from " + session.getRemoteIpAddress());
+        
+        // 🔍 新增：打印完整的原始 URI 和 Query String
+        logUtils.d(TAG, "serve: === 原始请求信息 START ===");
+        logUtils.d(TAG, "serve: Raw URI: " + session.getUri());
+        
+        // NanoHTTPD 没有 getQuery() 方法，需要从 URI 中解析
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0) {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "serve: Query String: " + queryString);
+        
+        logUtils.d(TAG, "serve: Method: " + method);
+        logUtils.d(TAG, "serve: Remote IP: " + session.getRemoteIpAddress());
+        logUtils.d(TAG, "serve: === 原始请求信息 END ===");
 
         // 打印所有请求头（用于调试）
         if (method.equals(Method.PUT) || method.equals(Method.POST)) {
@@ -516,7 +533,28 @@ public class JoyManApiService extends NanoHTTPD {
     private Response getIssues(IHTTPSession session) {
         logUtils.d(TAG, "getIssues: Listing all issues");
 
+        // 🔍 调试：打印完整的请求参数
+        logUtils.d(TAG, "getIssues: === 参数调试 START ===");
+        
+        // 从 URI 中解析 query string
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0) {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "getIssues: Query String: " + queryString);
+        logUtils.d(TAG, "getIssues: URI: " + fullUri);
+        
         Map<String, String> params = session.getParms();
+        logUtils.d(TAG, "getIssues: params size: " + (params != null ? params.size() : 0));
+        if (params != null) {
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                logUtils.d(TAG, "getIssues: params[" + entry.getKey() + "] = " + entry.getValue());
+            }
+        }
+        logUtils.d(TAG, "getIssues: params.get(\"project_id\") = " + (params != null ? params.get("project_id") : "params is null"));
+        logUtils.d(TAG, "getIssues: === 参数调试 END ===");
         
         int limit = parseIntSafe(params.get("limit"), 25);
         int offset = parseIntSafe(params.get("offset"), 0);
