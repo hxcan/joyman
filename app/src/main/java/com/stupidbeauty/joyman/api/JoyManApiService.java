@@ -338,7 +338,19 @@ public class JoyManApiService extends NanoHTTPD {
         try {
             logUtils.d(TAG, "updateIssue: Calling session.parseBody()...");
             session.parseBody(files);
+            
+            // 关键修复：同时检查 "postData" 和 "content" key
+            // Chunked Transfer Encoding 时，NanoHTTPD 将数据放在 "content" key
             postData = files.get("postData");
+            if (postData == null || postData.isEmpty()) {
+                postData = files.get("content");
+                if (postData != null && !postData.isEmpty()) {
+                    logUtils.d(TAG, "updateIssue: Got data from 'content' key (chunked encoding)");
+                }
+            } else {
+                logUtils.d(TAG, "updateIssue: Got data from 'postData' key");
+            }
+            
             logUtils.d(TAG, "updateIssue: parseBody got postData: " + (postData != null ? (postData.length() > 100 ? postData.substring(0, 100) + "..." : postData) : "null"));
             logUtils.d(TAG, "updateIssue: parseBody files keys: " + (files != null ? files.keySet() : "null"));
         } catch (IOException | ResponseException e) {
@@ -593,7 +605,14 @@ public class JoyManApiService extends NanoHTTPD {
         
         try {
             session.parseBody(files);
+            // 同时检查 "postData" 和 "content" key
             postData = files.get("postData");
+            if (postData == null || postData.isEmpty()) {
+                postData = files.get("content");
+                if (postData != null && !postData.isEmpty()) {
+                    logUtils.d(TAG, "createIssue: Got data from 'content' key (chunked encoding)");
+                }
+            }
         } catch (IOException | ResponseException e) {
             logUtils.e(TAG, "createIssue: parseBody failed, trying stream", e);
         }
@@ -660,7 +679,14 @@ public class JoyManApiService extends NanoHTTPD {
         
         try {
             session.parseBody(files);
+            // 同时检查 "postData" 和 "content" key
             postData = files.get("postData");
+            if (postData == null || postData.isEmpty()) {
+                postData = files.get("content");
+                if (postData != null && !postData.isEmpty()) {
+                    logUtils.d(TAG, "createProject: Got data from 'content' key (chunked encoding)");
+                }
+            }
         } catch (IOException | ResponseException e) {
             logUtils.e(TAG, "createProject: parseBody failed", e);
         }
