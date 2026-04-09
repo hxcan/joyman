@@ -16,6 +16,8 @@ import com.stupidbeauty.joyman.util.LogUtils;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +30,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import fi.iki.elonen.NanoHTTPD;
+
 
 /**
  * JoyMan REST API 服务器 - 带详细调试日志
@@ -87,18 +90,114 @@ public class JoyManApiService extends NanoHTTPD {
         return normalized;
     }
 
+    /**
+     * 清理 Chunked Transfer Encoding 的数据
+     * 修复：同时清理 JSON 开头和 Chunked 结尾标记（\r\n0\r\n, \r\n0\n 等）
+     */
     private String cleanChunkedData(String data) {
         if (data == null || data.isEmpty()) {
             return data;
         }
 
+        logUtils.d(TAG, "cleanChunkedData: Original data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Data preview (first 200 chars): " + (data.length() > 200 ? data.substring(0, 200) + "..." : data));
+
+        // 1. 找到 JSON 开始位置
         int jsonStart = Math.max(data.indexOf('{'), data.indexOf('['));
         if (jsonStart > 0) {
-            logUtils.d(TAG, "cleanChunkedData: Extracted JSON from chunked data (" + data.length() + " chars)");
-            return data.substring(jsonStart);
+            logUtils.d(TAG, "cleanChunkedData: Found JSON start at index " + jsonStart);
+            data = data.substring(jsonStart);
         }
 
+        // 2. 清理 Chunked Encoding 的结尾标记
+        String[] chunkedEndings = {
+            "\r\n0\r\n",
+            "\r\n0\n",
+            "\n0\r\n",
+            "\n0\n",
+            "\r\n0",
+            "\n0"
+        };
+
+        for (String ending : chunkedEndings) {
+            if (data.endsWith(ending)) {
+                logUtils.d(TAG, "cleanChunkedData: Removing chunked ending: " + escapeSpecialChars(ending));
+                data = data.substring(0, data.length() - ending.length());
+                break;
+            }
+        }
+
+        // 3. 再次检查并移除可能的残留空白字符
+        data = data.trim();
+
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data preview: " + (data.length() > 200 ? data.substring(0, 200) + "..." : data));
+
         return data;
+    }
+
+    /**
+     * 转义特殊字符用于日志显示
+     */
+    private String escapeSpecialChars(String str) {
+        return str.replace("\r", "\\r").replace("\n", "\\n");
+    }
+
+    /**
+     * 检测字符串是否为文件路径
+     */
+    private boolean isFilePath(String path) {
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+        return (path.startsWith("/") || path.startsWith("C:") || path.startsWith("D:")) &&
+               (path.contains("/cache/") || path.contains("\\cache\\") ||
+                path.contains("/tmp/") || path.contains("\\tmp\\") ||
+                path.contains("NanoHTTPD"));
+    }
+
+    /**
+     * 从文件读取内容（Android 兼容方式，支持 API 24+）
+     */
+    private String readFileContent(String filePath) {
+        try {
+            logUtils.d(TAG, "readFileContent: Reading file: " + filePath);
+            
+            File file = new File(filePath);
+            if (!file.exists()) {
+                logUtils.e(TAG, "readFileContent: File does not exist: " + filePath);
+                return null;
+            }
+
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            FileInputStream inputStream = null;
+            try {
+                inputStream = new FileInputStream(file);
+                byte[] data = new byte[8192];
+                int nRead;
+                while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+                    buffer.write(data, 0, nRead);
+                }
+                buffer.flush();
+                
+                String content = buffer.toString(StandardCharsets.UTF_8.name());
+                logUtils.d(TAG, "readFileContent: File size: " + content.length() + " chars");
+                logUtils.d(TAG, "readFileContent: Content preview: " + (content.length() > 200 ? content.substring(0, 200) + "..." : content));
+                
+                return content;
+            } finally {
+                if (inputStream != null) {
+                    try {
+                        inputStream.close();
+                    } catch (IOException e) {
+                        logUtils.w(TAG, "readFileContent: Error closing stream: " + e.getMessage());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            logUtils.e(TAG, "readFileContent: Error reading file: " + filePath, e);
+            return null;
+        }
     }
 
     /**
@@ -108,7 +207,6 @@ public class JoyManApiService extends NanoHTTPD {
         logUtils.d(TAG, "readRequestBodyFromStream: === START ===");
         
         try {
-            // 打印所有请求头
             Map<String, String> headers = session.getHeaders();
             logUtils.d(TAG, "readRequestBodyFromStream: Headers count: " + (headers != null ? headers.size() : 0));
             
@@ -121,11 +219,9 @@ public class JoyManApiService extends NanoHTTPD {
             String contentLength = headers != null ? headers.get("content-length") : null;
             logUtils.d(TAG, "readRequestBodyFromStream: Content-Length = " + contentLength);
             
-            // 打印其他相关信息
             logUtils.d(TAG, "readRequestBodyFromStream: Method = " + session.getMethod());
             logUtils.d(TAG, "readRequestBodyFromStream: URI = " + session.getUri());
             
-            // 尝试获取输入流
             logUtils.d(TAG, "readRequestBodyFromStream: Trying to get input stream...");
             
             if (contentLength != null && !contentLength.isEmpty()) {
@@ -168,7 +264,6 @@ public class JoyManApiService extends NanoHTTPD {
             } else {
                 logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is null or empty, trying to read anyway...");
                 
-                // 即使没有 Content-Length 也尝试读取
                 try {
                     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
                     byte[] data = new byte[1024];
@@ -213,11 +308,9 @@ public class JoyManApiService extends NanoHTTPD {
 
         logUtils.i(TAG, "Request: " + method + " " + uri + " from " + session.getRemoteIpAddress());
         
-        // 🔍 新增：打印完整的原始 URI 和 Query String
         logUtils.d(TAG, "serve: === 原始请求信息 START ===");
         logUtils.d(TAG, "serve: Raw URI: " + session.getUri());
         
-        // NanoHTTPD 没有 getQuery() 方法，需要从 URI 中解析
         String fullUri = session.getUri();
         String queryString = "";
         int queryIndex = fullUri.indexOf('?');
@@ -230,7 +323,6 @@ public class JoyManApiService extends NanoHTTPD {
         logUtils.d(TAG, "serve: Remote IP: " + session.getRemoteIpAddress());
         logUtils.d(TAG, "serve: === 原始请求信息 END ===");
 
-        // 打印所有请求头（用于调试）
         if (method.equals(Method.PUT) || method.equals(Method.POST)) {
             Map<String, String> headers = session.getHeaders();
             if (headers != null) {
@@ -356,8 +448,6 @@ public class JoyManApiService extends NanoHTTPD {
             logUtils.d(TAG, "updateIssue: Calling session.parseBody()...");
             session.parseBody(files);
             
-            // 关键修复：同时检查 "postData" 和 "content" key
-            // Chunked Transfer Encoding 时，NanoHTTPD 将数据放在 "content" key
             postData = files.get("postData");
             if (postData == null || postData.isEmpty()) {
                 postData = files.get("content");
@@ -388,6 +478,19 @@ public class JoyManApiService extends NanoHTTPD {
             logUtils.e(TAG, "updateIssue: No data provided after all attempts");
             logUtils.d(TAG, "updateIssue: === END (failure: no data) ===");
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
+        }
+
+        if (isFilePath(postData)) {
+            logUtils.d(TAG, "updateIssue: Detected file path, reading file content...");
+            String fileContent = readFileContent(postData);
+            if (fileContent != null) {
+                postData = fileContent;
+                logUtils.d(TAG, "updateIssue: Successfully read file content, length: " + postData.length());
+            } else {
+                logUtils.e(TAG, "updateIssue: Failed to read file content");
+                logUtils.d(TAG, "updateIssue: === END (failure: can't read file) ===");
+                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to read request data\"}");
+            }
         }
 
         postData = cleanChunkedData(postData);
@@ -533,10 +636,8 @@ public class JoyManApiService extends NanoHTTPD {
     private Response getIssues(IHTTPSession session) {
         logUtils.d(TAG, "getIssues: Listing all issues");
 
-        // 🔍 调试：打印完整的请求参数
         logUtils.d(TAG, "getIssues: === 参数调试 START ===");
         
-        // 从 URI 中解析 query string
         String fullUri = session.getUri();
         String queryString = "";
         int queryIndex = fullUri.indexOf('?');
@@ -643,7 +744,6 @@ public class JoyManApiService extends NanoHTTPD {
         
         try {
             session.parseBody(files);
-            // 同时检查 "postData" 和 "content" key
             postData = files.get("postData");
             if (postData == null || postData.isEmpty()) {
                 postData = files.get("content");
@@ -661,6 +761,18 @@ public class JoyManApiService extends NanoHTTPD {
 
         if (postData == null || postData.isEmpty()) {
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
+        }
+
+        if (isFilePath(postData)) {
+            logUtils.d(TAG, "createIssue: Detected file path, reading file content...");
+            String fileContent = readFileContent(postData);
+            if (fileContent != null) {
+                postData = fileContent;
+                logUtils.d(TAG, "createIssue: Successfully read file content, length: " + postData.length());
+            } else {
+                logUtils.e(TAG, "createIssue: Failed to read file content");
+                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to read request data\"}");
+            }
         }
 
         postData = cleanChunkedData(postData);
@@ -717,7 +829,6 @@ public class JoyManApiService extends NanoHTTPD {
         
         try {
             session.parseBody(files);
-            // 同时检查 "postData" 和 "content" key
             postData = files.get("postData");
             if (postData == null || postData.isEmpty()) {
                 postData = files.get("content");
@@ -735,6 +846,18 @@ public class JoyManApiService extends NanoHTTPD {
 
         if (postData == null || postData.isEmpty()) {
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
+        }
+
+        if (isFilePath(postData)) {
+            logUtils.d(TAG, "createProject: Detected file path, reading file content...");
+            String fileContent = readFileContent(postData);
+            if (fileContent != null) {
+                postData = fileContent;
+                logUtils.d(TAG, "createProject: Successfully read file content, length: " + postData.length());
+            } else {
+                logUtils.e(TAG, "createProject: Failed to read file content");
+                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to read request data\"}");
+            }
         }
 
         postData = cleanChunkedData(postData);
