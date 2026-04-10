@@ -13,12 +13,11 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
 import java.util.List;
 
 
-
 /**
  * Task 数据访问对象（DAO）
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.3
+ * @version 2.0.4
  * @since 2026-03-31
  */
 @Dao
@@ -97,6 +96,21 @@ public interface TaskDao {
      */
     @Query("SELECT * FROM tasks WHERE title LIKE '%' || :keyword || '%' ORDER BY created_at DESC")
     LiveData<List<Task>> searchTasksLive(String keyword);
+    
+    /**
+     * 多关键词搜索任务（LiveData 响应式）
+     * 支持空格分隔的多个关键词，所有关键词都必须匹配（AND 逻辑）
+     * 搜索范围：任务标题 + 任务描述
+     * @param keywords 关键词数组
+     * @return 可观察的任务列表
+     */
+    @Query("SELECT * FROM tasks WHERE (:keywords IS NULL OR :keywords = '' OR " +
+           "EXISTS (SELECT 1 FROM (SELECT rtrim(rtrim(replace(' ' || :keywords || ' ', ' ', char(10)), char(10) || ' '), ' ') as word, " +
+           "length(' ' || :keywords || ' ') - length(replace(' ' || :keywords || ' ', ' ', '')) + 1 as cnt) " +
+           "WHERE word != '' AND LENGTH(word) >= 2 LIMIT 5) AND " +
+           "(title LIKE '%' || :keywords || '%' OR (description IS NOT NULL AND description LIKE '%' || :keywords || '%'))) " +
+           "ORDER BY created_at DESC")
+    LiveData<List<Task>> searchTasksByKeywords(String keywords);
     
     /**
      * 获取任务总数

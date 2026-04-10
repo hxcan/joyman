@@ -18,6 +18,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
@@ -40,11 +41,12 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
+
 /**
  * JoyMan 主界面 - 任务列表展示
  * 
  * @author 太极美术工程狮狮长
- * @version 3.0.5
+ * @version 3.1.0
  * @since 2026-04-01
  */
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener, ProjectAdapter.OnProjectClickListener {
@@ -67,6 +69,8 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private BuiltinFtpServer builtinFtpServer;
     private BuiltinFtpServerErrorListener errorListener;
     private LogUtils logUtils;
+    private SearchView searchView;
+    private boolean isSearching = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -131,10 +135,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (position == 0) {
                     selectedProject = null;
-                    loadAllTasks();
+                    if (!isSearching) {
+                        loadAllTasks();
+                    }
                 } else {
                     selectedProject = projectList.get(position);
-                    if (selectedProject != null) {
+                    if (selectedProject != null && !isSearching) {
                         loadTasksByProject(selectedProject.getId());
                     }
                 }
@@ -165,8 +171,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             projectSpinnerAdapter.notifyDataSetChanged();
         });
         
+        // 观察所有任务
         taskViewModel.getAllTasks().observe(this, tasks -> {
-            if (tasks != null && selectedProject == null) {
+            if (tasks != null && selectedProject == null && !isSearching) {
                 // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
@@ -406,14 +413,99 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
+        
+        // 初始化搜索框
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        searchView = (SearchView) searchItem.getActionView();
+        
+        if (searchView != null) {
+            searchView.setQueryHint("搜索任务（支持多关键词）");
+            
+            // 设置搜索监听器
+            searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+                @Override
+                public boolean onQueryTextSubmit(String query) {
+                    // 提交搜索
+                    performSearch(query);
+                    searchView.clearFocus();
+                    return true;
+                }
+                
+                @Override
+                public boolean onQueryTextChange(String newText) {
+                    // 实时搜索（可选，如果不需要实时搜索可以返回 false）
+                    if (newText.isEmpty()) {
+                        clearSearch();
+                    } else if (newText.length() >= 2) {
+                        // 至少 2 个字符才开始搜索
+                        performSearch(newText);
+                    }
+                    return true;
+                }
+            });
+            
+            // 设置关闭监听器
+            searchView.setOnCloseListener(() -> {
+                clearSearch();
+                return false;
+            });
+        }
+        
         return true;
+    }
+    
+    /**
+     * 执行搜索
+     */
+    private void performSearch(String keywords) {
+        if (keywords == null || keywords.trim().isEmpty()) {
+            clearSearch();
+            return;
+        }
+        
+        isSearching = true;
+        logUtils.d(TAG, "performSearch: Searching with keywords: " + keywords);
+        
+        // 调用 ViewModel 进行搜索
+        taskViewModel.searchTasksByKeywords(keywords).observe(this, tasks -> {
+            if (tasks != null) {
+                // 过滤掉已关闭的任务
+                List<Task> filteredTasks = tasks.stream()
+                    .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
+                    .collect(java.util.stream.Collectors.toList());
+                
+                taskAdapter.setTasks(filteredTasks);
+                
+                if (filteredTasks.isEmpty()) {
+                    Toast.makeText(this, "未找到匹配的任务", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "找到 " + filteredTasks.size() + " 个任务", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+    
+    /**
+     * 清除搜索，恢复完整列表
+     */
+    private void clearSearch() {
+        isSearching = false;
+        logUtils.d(TAG, "clearSearch: Clearing search and restoring full list");
+        
+        if (selectedProject == null) {
+            loadAllTasks();
+        } else {
+            loadTasksByProject(selectedProject.getId());
+        }
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         
-        if (id == R.id.action_manage_projects) {
+        if (id == R.id.action_search) {
+            return true;
+        } else if (id == R.id.action_manage_projects) {
             showManageProjectsDialog();
             return true;
         } else if (id == R.id.action_settings) {

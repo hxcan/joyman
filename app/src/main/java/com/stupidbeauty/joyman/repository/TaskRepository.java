@@ -14,12 +14,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 
-
 /**
  * Task 数据仓库
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.9
+ * @version 2.0.10
  * @since 2026-03-31
  */
 public class TaskRepository {
@@ -290,6 +289,18 @@ public class TaskRepository {
     public LiveData<List<Task>> searchTasksLive(String keyword) { 
         logUtils.d(TAG, "🔍 Searching tasks with keyword: " + keyword);
         return taskDao.searchTasksLive(keyword); 
+    }
+    
+    /**
+     * 多关键词搜索任务（LiveData 响应式）
+     * 支持空格分隔的多个关键词，所有关键词都必须匹配（AND 逻辑）
+     * 搜索范围：任务标题 + 任务描述
+     * @param keywords 关键词字符串（空格分隔）
+     * @return 可观察的任务列表
+     */
+    public LiveData<List<Task>> searchTasksByKeywords(String keywords) {
+        logUtils.d(TAG, "🔍 Searching tasks by keywords: " + keywords);
+        return taskDao.searchTasksByKeywords(keywords);
     }
     
     /**
