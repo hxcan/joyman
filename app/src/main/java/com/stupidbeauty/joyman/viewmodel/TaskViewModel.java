@@ -11,12 +11,11 @@ import com.stupidbeauty.joyman.repository.TaskRepository;
 import java.util.List;
 
 
-
 /**
  * Task ViewModel
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.4
+ * @version 1.0.5
  * @since 2026-03-31
  */
 public class TaskViewModel extends AndroidViewModel {
@@ -62,6 +61,15 @@ public class TaskViewModel extends AndroidViewModel {
     
     public LiveData<List<Task>> searchTasks(String keyword) {
         return repository.searchTasksLive(keyword);
+    }
+    
+    /**
+     * 多关键词搜索任务
+     * @param keywords 关键词字符串（空格分隔）
+     * @return 可观察的任务列表
+     */
+    public LiveData<List<Task>> searchTasksByKeywords(String keywords) {
+        return repository.searchTasksByKeywords(keywords);
     }
     
     public LiveData<List<Task>> getTasksByProject(long projectId) {
