@@ -346,6 +346,8 @@ public class JoyManApiService extends NanoHTTPD {
         try {
             if (uri.equals("issues.json")) {
                 return handleIssues(session, method);
+            } else if (uri.equals("search.json")) {
+                return handleSearch(session, method);
             } else if (uri.startsWith("issues/") && uri.endsWith(".json")) {
                 return handleIssueDetail(session, method, uri);
             } else if (uri.equals("projects.json")) {
@@ -361,6 +363,165 @@ public class JoyManApiService extends NanoHTTPD {
             logUtils.e(TAG, "serve: Error handling request", e);
             return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: " + e.getMessage() + "\"}");
         }
+    }
+
+    /**
+     * 处理 /search.json 请求
+     * 兼容 Redmine REST API 搜索接口
+     * 参考：https://www.redmine.org/projects/redmine/wiki/Rest_Search
+     */
+    private Response handleSearch(IHTTPSession session, Method method) {
+        if (!Method.GET.equals(method)) {
+            logUtils.w(TAG, "handleSearch: Method not allowed: " + method);
+            return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+        }
+
+        Map<String, String> params = session.getParms();
+        
+        // 获取搜索参数
+        String query = params.get("q");
+        String issuesFlag = params.get("issues");
+        int offset = parseIntSafe(params.get("offset"), 0);
+        int limit = parseIntSafe(params.get("limit"), 25);
+        
+        logUtils.d(TAG, "handleSearch: q=" + query + ", issues=" + issuesFlag + ", limit=" + limit + ", offset=" + offset);
+        
+        // 只支持 issues 搜索（JoyMan 暂不支持 news/wiki 等）
+        if (issuesFlag == null || !"1".equals(issuesFlag)) {
+            // 如果没有指定 issues=1，返回空结果（兼容 Redmine API）
+            JsonObject emptyResponse = new JsonObject();
+            emptyResponse.add("results", new JsonArray());
+            emptyResponse.addProperty("total_count", 0);
+            emptyResponse.addProperty("offset", offset);
+            emptyResponse.addProperty("limit", limit);
+            return createCorsResponse(Response.Status.OK, "application/json", emptyResponse.toString());
+        }
+        
+        // 执行搜索
+        if (query == null || query.trim().isEmpty()) {
+            // 没有关键词，返回所有任务（降级行为）
+            logUtils.w(TAG, "handleSearch: No query provided, returning all issues");
+            return getIssues(session);
+        }
+        
+        try {
+            List<Task> results = searchTasks(query, limit, offset);
+            
+            // 构建 Redmine 风格的响应
+            JsonArray resultsArray = new JsonArray();
+            for (Task task : results) {
+                JsonObject result = new JsonObject();
+                result.addProperty("id", task.getId());
+                result.addProperty("title", "Issue #" + task.getId() + ": " + task.getTitle());
+                result.addProperty("type", "issue");
+                result.addProperty("url", "/issues/" + task.getId());
+                result.addProperty("description", task.getDescription() != null ? task.getDescription() : "");
+                result.addProperty("datetime", formatDateTime(task.getCreatedAt()));
+                
+                // 添加项目信息
+                if (task.getProjectId() != null) {
+                    Project project = projectRepository.getProjectById(task.getProjectId());
+                    if (project != null) {
+                        JsonObject projectObj = new JsonObject();
+                        projectObj.addProperty("id", project.getId());
+                        projectObj.addProperty("name", project.getName());
+                        result.add("project", projectObj);
+                    }
+                }
+                
+                resultsArray.add(result);
+            }
+            
+            JsonObject response = new JsonObject();
+            response.add("results", resultsArray);
+            response.addProperty("total_count", results.size());
+            response.addProperty("offset", offset);
+            response.addProperty("limit", limit);
+            
+            logUtils.i(TAG, "handleSearch: Found " + results.size() + " results for query: " + query);
+            
+            return createCorsResponse(Response.Status.OK, "application/json", response.toString());
+            
+        } catch (Exception e) {
+            logUtils.e(TAG, "handleSearch: Error executing search", e);
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Search failed: " + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * 执行任务搜索（使用内存过滤模拟 SQL LIKE）
+     * 参考 Redmine 实现：分词处理，最多 5 个 token，每个≥2 字符
+     */
+    private List<Task> searchTasks(String query, int limit, int offset) {
+        // 1. 分词处理（Redmine 风格）
+        String[] tokens = query.split("\\s+");
+        List<String> validTokens = new ArrayList<>();
+        for (String token : tokens) {
+            if (token.length() >= 2 && validTokens.size() < 5) {
+                validTokens.add(token);
+            }
+        }
+        
+        if (validTokens.isEmpty()) {
+            logUtils.w(TAG, "searchTasks: No valid tokens after filtering");
+            return new ArrayList<>();
+        }
+        
+        logUtils.d(TAG, "searchTasks: Searching with tokens: " + validTokens);
+        
+        // 2. 获取所有任务并在内存中过滤（模拟 SQL LIKE）
+        List<Task> allTasks = taskRepository.getAllTasks();
+        if (allTasks == null || allTasks.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // 3. 内存过滤（模拟 SQL LIKE: WHERE title LIKE '%token%' OR description LIKE '%token%'）
+        List<Task> filteredTasks = new ArrayList<>();
+        for (Task task : allTasks) {
+            boolean matches = true;
+            
+            // 所有 token 都必须匹配（AND 逻辑，参考 Redmine）
+            for (String token : validTokens) {
+                String lowerToken = token.toLowerCase();
+                boolean titleMatch = task.getTitle().toLowerCase().contains(lowerToken);
+                boolean descMatch = task.getDescription() != null && 
+                                   task.getDescription().toLowerCase().contains(lowerToken);
+                
+                if (!titleMatch && !descMatch) {
+                    matches = false;
+                    break;
+                }
+            }
+            
+            if (matches) {
+                filteredTasks.add(task);
+            }
+        }
+        
+        // 4. 排序（按创建时间倒序）
+        filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
+        
+        // 5. 分页
+        int totalCount = filteredTasks.size();
+        int fromIndex = Math.min(offset, totalCount);
+        int toIndex = Math.min(offset + limit, totalCount);
+        
+        List<Task> paginatedTasks = fromIndex < toIndex ? 
+                                    filteredTasks.subList(fromIndex, toIndex) : 
+                                    new ArrayList<>();
+        
+        logUtils.i(TAG, "searchTasks: Found " + paginatedTasks.size() + " of " + totalCount + " matching tasks");
+        
+        return paginatedTasks;
+    }
+
+    /**
+     * 格式化日期时间为 ISO 8601 格式
+     */
+    private String formatDateTime(long timestamp) {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return sdf.format(new java.util.Date(timestamp));
     }
 
     private Response handleIssues(IHTTPSession session, Method method) {
