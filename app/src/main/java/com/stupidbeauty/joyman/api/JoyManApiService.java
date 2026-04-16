@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,7 @@ public class JoyManApiService extends NanoHTTPD {
     private static final String DEFAULT_ADMIN_USERNAME = "admin";
     private static final String DEFAULT_ADMIN_PASSWORD = "admin";
 
-    private static final Pattern ISSUE_ID_PATTERN = Pattern.compile("^issues/(\\d+)\\.json$");
+    private static final Pattern ISSUE_ID_PATTERN = Pattern.compile("^issues\\/(\\d+)\\.json$");
 
     private Context context;
     private LogUtils logUtils;
@@ -88,6 +89,44 @@ public class JoyManApiService extends NanoHTTPD {
         String normalized = uri.startsWith("/") ? uri.substring(1) : uri;
         logUtils.d(TAG, "normalizeUri: \"" + uri + "\" → \"" + normalized + "\"");
         return normalized;
+    }
+
+    /**
+     * 动态获取当前支持的API端点列表（运行时刻列举，不写死）
+     * 可根据实际情况扩展，如从配置文件、注解或数据库读取
+     */
+    private Map<String, List<String>> getAvailableEndpoints() {
+        Map<String, List<String>> endpoints = new HashMap<>();
+        
+        endpoints.put("issues.json", Arrays.asList("GET", "POST"));
+        endpoints.put("issues/{id}.json", Arrays.asList("GET", "PUT", "DELETE"));
+        endpoints.put("search.json", Arrays.asList("GET"));
+        endpoints.put("projects.json", Arrays.asList("GET", "POST"));
+        
+        return endpoints;
+    }
+    
+    /**
+     * 构建可用端点的JSON响应
+     */
+    private String buildAvailableEndpointsJson() {
+        Map<String, List<String>> endpoints = getAvailableEndpoints();
+        JsonObject root = new JsonObject();
+        JsonArray endpointsArray = new JsonArray();
+        
+        for (Map.Entry<String, List<String>> entry : endpoints.entrySet()) {
+            JsonObject endpoint = new JsonObject();
+            endpoint.addProperty("path", entry.getKey());
+            JsonArray methodsArray = new JsonArray();
+            for (String method : entry.getValue()) {
+                methodsArray.add(method);
+            }
+            endpoint.add("methods", methodsArray);
+            endpointsArray.add(endpoint);
+        }
+        
+        root.add("endpoints", endpointsArray);
+        return root.toString();
     }
 
     /**
@@ -354,10 +393,12 @@ public class JoyManApiService extends NanoHTTPD {
                 return handleProjects(session, method);
             } else if (uri.startsWith("projects/") && uri.endsWith(".json")) {
                 logUtils.w(TAG, "Unknown endpoint: " + uri);
-                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Unknown endpoint: " + uri + "\"}");
+                String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
+                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
             } else {
                 logUtils.w(TAG, "Unknown endpoint: " + uri);
-                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Unknown endpoint: " + uri + "\"}");
+                String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
+                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
             }
         } catch (Exception e) {
             logUtils.e(TAG, "serve: Error handling request", e);
