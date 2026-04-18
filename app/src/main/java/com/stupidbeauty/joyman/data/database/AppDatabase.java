@@ -152,12 +152,13 @@ public abstract class AppDatabase extends RoomDatabase {
             LogUtils.getInstance().d(TAG, "MIGRATION_4_5: START - Creating comments table for comment feature");
             
             // 创建 comments 表
+            // 注意：content 和 author 允许为 NULL，与 Comment 实体类保持一致
             database.execSQL(
                 "CREATE TABLE IF NOT EXISTS `comments` (" +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                 "`issue_id` INTEGER NOT NULL, " +
-                "`content` TEXT NOT NULL, " +
-                "`author` TEXT NOT NULL, " +
+                "`content` TEXT, " +
+                "`author` TEXT, " +
                 "`created_on` INTEGER NOT NULL, " +
                 "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
             );
