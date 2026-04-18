@@ -129,6 +129,17 @@ public class JoyManApiService extends NanoHTTPD
 
     /**
      * 清理 Chunked Transfer Encoding 的数据
+     * 修复：移除错误的 JSON 起始位置查找逻辑，避免截断合法的 JSON 内容
+     *
+     * 问题原因：
+     * - 原代码使用 indexOf('{') 查找 JSON 起始位置，但当描述字段包含 Markdown 格式的 JSON 代码块时（如 ```json），
+     * 会错误地定位到描述内容中的 { 字符，导致截断了真正的 JSON 开头
+     * - NanoHTTPD 的 parseBody 已经正确处理了 Chunked Encoding，不需要额外处理
+     *
+     * 解决方案：
+     * - 直接信任 parseBody 返回的数据是完整的
+     * - 只清理可能的 Chunked 结尾标记（\r\n0\r\n 等）
+     * - 添加详细日志用于调试
      */
     private String cleanChunkedData(String data)
     {
@@ -138,7 +149,11 @@ public class JoyManApiService extends NanoHTTPD
         }
         logUtils.d(TAG, "cleanChunkedData: === START ===");
         logUtils.d(TAG, "cleanChunkedData: Original data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Original data preview (first 300 chars): " + (data.length() > 300 ? data.substring(0, 300) + "..." : data));
 
+        // 不再查找并截取 JSON 起始位置，直接使用原始数据
+        // 原因：描述字段中可能包含 Markdown 格式的 JSON 代码块，导致 indexOf('{') 定位错误
+        // 仅清理可能的 Chunked Encoding 结尾标记
         String[] chunkedEndings = {
             "\r\n0\r\n", "\r\n0\n", "\n0\r\n", "\n0\n", "\r\n0", "\n0"
         };
@@ -153,12 +168,19 @@ public class JoyManApiService extends NanoHTTPD
             }
         }
 
+        // 移除首尾空白字符
         data = data.trim();
 
         logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data preview (first 300 chars): " + (data.length() > 300 ? data.substring(0, 300) + "..." : data));
+
         if (!originalData.equals(data))
         {
-            logUtils.d(TAG, "cleanChunkedData: Data was modified");
+            logUtils.d(TAG, "cleanChunkedData: Data was modified (length changed from " + originalData.length() + " to " + data.length() + ")");
+        }
+        else
+        {
+            logUtils.d(TAG, "cleanChunkedData: Data unchanged (no chunked markers found)");
         }
 
         logUtils.d(TAG, "cleanChunkedData: === END ===");
@@ -189,7 +211,7 @@ public class JoyManApiService extends NanoHTTPD
     }
 
     /**
-     * 从文件读取内容
+     * 从文件读取内容（Android 兼容方式，支持 API 24+）
      */
     private String readFileContent(String filePath)
     {
@@ -217,6 +239,7 @@ public class JoyManApiService extends NanoHTTPD
                 buffer.flush();
                 String content = buffer.toString(StandardCharsets.UTF_8.name());
                 logUtils.d(TAG, "readFileContent: File size: " + content.length() + " chars");
+                logUtils.d(TAG, "readFileContent: Content preview: " + (content.length() > 200 ? content.substring(0, 200) + "..." : content));
                 return content;
             }
             finally
@@ -242,7 +265,7 @@ public class JoyManApiService extends NanoHTTPD
     }
 
     /**
-     * 从输入流读取请求体
+     * 从输入流读取请求体（带详细调试日志）
      */
     private String readRequestBodyFromStream(IHTTPSession session)
     {
@@ -250,39 +273,105 @@ public class JoyManApiService extends NanoHTTPD
         try
         {
             Map<String, String> headers = session.getHeaders();
+            logUtils.d(TAG, "readRequestBodyFromStream: Headers count: " + (headers != null ? headers.size() : 0));
+            if (headers != null)
+            {
+                for (Map.Entry<String, String> entry : headers.entrySet())
+                {
+                    logUtils.d(TAG, "readRequestBodyFromStream: Header[" + entry.getKey() + "] = " + entry.getValue());
+                }
+            }
+
             String contentLength = headers != null ? headers.get("content-length") : null;
+            logUtils.d(TAG, "readRequestBodyFromStream: Content-Length = " + contentLength);
+            logUtils.d(TAG, "readRequestBodyFromStream: Method = " + session.getMethod());
+            logUtils.d(TAG, "readRequestBodyFromStream: URI = " + session.getUri());
+            logUtils.d(TAG, "readRequestBodyFromStream: Trying to get input stream...");
 
             if (contentLength != null && !contentLength.isEmpty())
             {
                 int len = Integer.parseInt(contentLength);
+                logUtils.d(TAG, "readRequestBodyFromStream: Content-Length parsed as " + len + " bytes");
                 if (len > 0)
                 {
                     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
                     byte[] data = new byte[len];
                     int totalRead = 0;
+                    try
+                    {
+                        int nRead;
+                        while ((nRead = session.getInputStream().read(data, 0, len)) != -1)
+                        {
+                            buffer.write(data, 0, nRead);
+                            totalRead += nRead;
+                            logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                            if (totalRead >= len)
+                            {
+                                break;
+                            }
+                        }
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success) ===");
+                        return result;
+                    }
+                    catch (Exception e)
+                    {
+                        logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream", e);
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (error) ===");
+                        return null;
+                    }
+                }
+                else
+                {
+                    logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is 0, no data to read");
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (zero length) ===");
+                    return null;
+                }
+            }
+            else
+            {
+                logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is null or empty, trying to read anyway...");
+                try
+                {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[1024];
                     int nRead;
-                    while ((nRead = session.getInputStream().read(data, 0, len)) != -1)
+                    int totalRead = 0;
+                    while ((nRead = session.getInputStream().read(data, 0, 1024)) != -1)
                     {
                         buffer.write(data, 0, nRead);
                         totalRead += nRead;
-                        if (totalRead >= len)
-                        {
-                            break;
-                        }
+                        logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
                     }
-                    String result = buffer.toString(StandardCharsets.UTF_8.name());
-                    logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes");
-                    logUtils.d(TAG, "readRequestBodyFromStream: === END (success) ===");
-                    return result;
+                    if (totalRead > 0)
+                    {
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes (no Content-Length)");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success, no CL) ===");
+                        return result;
+                    }
+                    else
+                    {
+                        logUtils.w(TAG, "readRequestBodyFromStream: No data read from stream");
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (no data) ===");
+                        return null;
+                    }
+                }
+                catch (Exception e)
+                {
+                    logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream without Content-Length", e);
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (error, no CL) ===");
+                    return null;
                 }
             }
-            logUtils.d(TAG, "readRequestBodyFromStream: === END (no data) ===");
-            return null;
         }
         catch (Exception e)
         {
             logUtils.e(TAG, "readRequestBodyFromStream: Unexpected error", e);
-            logUtils.d(TAG, "readRequestBodyFromStream: === END (error) ===");
+            logUtils.d(TAG, "readRequestBodyFromStream: === END (unexpected error) ===");
             return null;
         }
     }
@@ -294,8 +383,36 @@ public class JoyManApiService extends NanoHTTPD
         Method method = session.getMethod();
         logUtils.i(TAG, "Request: " + method + " " + uri + " from " + session.getRemoteIpAddress());
 
+        logUtils.d(TAG, "serve: === 原始请求信息 START ===");
+        logUtils.d(TAG, "serve: Raw URI: " + session.getUri());
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0)
+        {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "serve: Query String: " + queryString);
+        logUtils.d(TAG, "serve: Method: " + method);
+        logUtils.d(TAG, "serve: Remote IP: " + session.getRemoteIpAddress());
+        logUtils.d(TAG, "serve: === 原始请求信息 END ===");
+
+        if (method.equals(Method.PUT) || method.equals(Method.POST))
+        {
+            Map<String, String> headers = session.getHeaders();
+            if (headers != null)
+            {
+                logUtils.d(TAG, "serve: Request headers for " + method + " " + uri + ":");
+                for (Map.Entry<String, String> entry : headers.entrySet())
+                {
+                    logUtils.d(TAG, "  " + entry.getKey() + ": " + entry.getValue());
+                }
+            }
+        }
+
         if (Method.OPTIONS.equals(method))
         {
+            logUtils.d(TAG, "serve: Handling OPTIONS preflight request");
             return createCorsResponse(Response.Status.OK, "text/plain", "");
         }
 
@@ -323,6 +440,12 @@ public class JoyManApiService extends NanoHTTPD
             {
                 return handleProjects(session, method);
             }
+            else if (uri.startsWith("projects/") && uri.endsWith(".json"))
+            {
+                logUtils.w(TAG, "Unknown endpoint: " + uri);
+                String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
+                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
+            }
             else
             {
                 logUtils.w(TAG, "Unknown endpoint: " + uri);
@@ -344,6 +467,7 @@ public class JoyManApiService extends NanoHTTPD
     {
         if (!Method.GET.equals(method))
         {
+            logUtils.w(TAG, "handleSearch: Method not allowed: " + method);
             return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
         }
 
@@ -353,16 +477,21 @@ public class JoyManApiService extends NanoHTTPD
         int offset = parseIntSafe(params.get("offset"), 0);
         int limit = parseIntSafe(params.get("limit"), 25);
 
+        logUtils.d(TAG, "handleSearch: q=" + query + ", issues=" + issuesFlag + ", limit=" + limit + ", offset=" + offset);
+
         if (issuesFlag == null || !"1".equals(issuesFlag))
         {
             JsonObject emptyResponse = new JsonObject();
             emptyResponse.add("results", new JsonArray());
             emptyResponse.addProperty("total_count", 0);
+            emptyResponse.addProperty("offset", offset);
+            emptyResponse.addProperty("limit", limit);
             return createCorsResponse(Response.Status.OK, "application/json", emptyResponse.toString());
         }
 
         if (query == null || query.trim().isEmpty())
         {
+            logUtils.w(TAG, "handleSearch: No query provided, returning all issues");
             return getIssues(session);
         }
 
@@ -398,6 +527,8 @@ public class JoyManApiService extends NanoHTTPD
             JsonObject response = new JsonObject();
             response.add("results", resultsArray);
             response.addProperty("total_count", results.size());
+            response.addProperty("offset", offset);
+            response.addProperty("limit", limit);
 
             logUtils.i(TAG, "handleSearch: Found " + results.size() + " results for query: " + query);
             return createCorsResponse(Response.Status.OK, "application/json", response.toString());
@@ -410,7 +541,7 @@ public class JoyManApiService extends NanoHTTPD
     }
 
     /**
-     * 执行任务搜索
+     * 执行任务搜索（使用内存过滤模拟 SQL LIKE）
      */
     private List<Task> searchTasks(String query, int limit, int offset)
     {
@@ -428,6 +559,8 @@ public class JoyManApiService extends NanoHTTPD
         {
             return new ArrayList<>();
         }
+
+        logUtils.d(TAG, "searchTasks: Searching with tokens: " + validTokens);
 
         List<Task> allTasks = taskRepository.getAllTasks();
         if (allTasks == null || allTasks.isEmpty())
@@ -457,8 +590,10 @@ public class JoyManApiService extends NanoHTTPD
             }
         }
 
+        // 按创建时间倒序排序
         filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
 
+        // 分页
         int totalCount = filteredTasks.size();
         int fromIndex = Math.min(offset, totalCount);
         int toIndex = Math.min(offset + limit, totalCount);
@@ -487,6 +622,7 @@ public class JoyManApiService extends NanoHTTPD
             case POST:
                 return createIssue(session);
             default:
+                logUtils.w(TAG, "handleIssues: Method not allowed: " + method);
                 return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
         }
     }
@@ -496,6 +632,7 @@ public class JoyManApiService extends NanoHTTPD
         Matcher matcher = ISSUE_ID_PATTERN.matcher(uri);
         if (!matcher.find())
         {
+            logUtils.w(TAG, "handleIssueDetail: Invalid issue ID pattern: " + uri);
             return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Invalid issue ID\"}");
         }
         long issueId = Long.parseLong(matcher.group(1));
@@ -509,6 +646,7 @@ public class JoyManApiService extends NanoHTTPD
             case DELETE:
                 return deleteIssue(session, issueId);
             default:
+                logUtils.w(TAG, "handleIssueDetail: Method not allowed: " + method);
                 return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
         }
     }
@@ -522,6 +660,7 @@ public class JoyManApiService extends NanoHTTPD
             case POST:
                 return createProject(session);
             default:
+                logUtils.w(TAG, "handleProjects: Method not allowed: " + method);
                 return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
         }
     }
@@ -544,7 +683,21 @@ public class JoyManApiService extends NanoHTTPD
         Map<String, String> params = session.getParms();
         String include = params.get("include");
 
-        // ✅ 新增：支持 include=journals 参数，返回评论列表
+        // 支持 children（子任务）
+        if ("children".equals(include))
+        {
+            logUtils.d(TAG, "getIssue: include=children requested, fetching subtasks");
+            List<Task> subtasks = taskRepository.getTaskDao().getSubtasksByParentId(issueId);
+            if (subtasks == null)
+            {
+                subtasks = new ArrayList<>();
+            }
+            JsonArray childrenArray = ApiJsonConverter.tasksToIssuesJson(subtasks, subtasks.size(), 0, subtasks.size()).getAsJsonArray("issues");
+            responseJson.add("children", childrenArray);
+            logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
+        }
+
+        // ✅ 新增：支持 journals（评论列表）
         if ("journals".equals(include))
         {
             logUtils.d(TAG, "getIssue: include=journals requested, fetching comments");
@@ -591,12 +744,23 @@ public class JoyManApiService extends NanoHTTPD
         Map<String, String> files = new HashMap<>();
         try
         {
+            logUtils.d(TAG, "updateIssue: Calling session.parseBody()...");
             session.parseBody(files);
             postData = files.get("postData");
             if (postData == null || postData.isEmpty())
             {
                 postData = files.get("content");
+                if (postData != null && !postData.isEmpty())
+                {
+                    logUtils.d(TAG, "updateIssue: Got data from 'content' key (chunked encoding)");
+                }
             }
+            else
+            {
+                logUtils.d(TAG, "updateIssue: Got data from 'postData' key");
+            }
+            logUtils.d(TAG, "updateIssue: parseBody got postData: " + (postData != null ? (postData.length() > 100 ? postData.substring(0, 100) + "..." : postData) : "null"));
+            logUtils.d(TAG, "updateIssue: parseBody files keys: " + (files != null ? files.keySet() : "null"));
         }
         catch (IOException | ResponseException e)
         {
@@ -605,24 +769,38 @@ public class JoyManApiService extends NanoHTTPD
 
         if (postData == null || postData.isEmpty())
         {
+            logUtils.d(TAG, "updateIssue: parseBody returned null/empty, trying input stream...");
             postData = readRequestBodyFromStream(session);
+            if (postData != null)
+            {
+                logUtils.d(TAG, "updateIssue: Got data from stream: " + (postData.length() > 100 ? postData.substring(0, 100) + "..." : postData));
+            }
+            else
+            {
+                logUtils.e(TAG, "updateIssue: readRequestBodyFromStream also returned null");
+            }
         }
 
         if (postData == null || postData.isEmpty())
         {
-            logUtils.e(TAG, "updateIssue: No data provided");
+            logUtils.e(TAG, "updateIssue: No data provided after all attempts");
+            logUtils.d(TAG, "updateIssue: === END (failure: no data) ===");
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
         }
 
         if (isFilePath(postData))
         {
+            logUtils.d(TAG, "updateIssue: Detected file path, reading file content...");
             String fileContent = readFileContent(postData);
             if (fileContent != null)
             {
                 postData = fileContent;
+                logUtils.d(TAG, "updateIssue: Successfully read file content, length: " + postData.length());
             }
             else
             {
+                logUtils.e(TAG, "updateIssue: Failed to read file content");
+                logUtils.d(TAG, "updateIssue: === END (failure: can't read file) ===");
                 return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to read request data\"}");
             }
         }
@@ -634,6 +812,7 @@ public class JoyManApiService extends NanoHTTPD
         if (existingTask == null)
         {
             logUtils.e(TAG, "updateIssue: Issue not found: " + issueId);
+            logUtils.d(TAG, "updateIssue: === END (failure: not found) ===");
             return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Issue not found\"}");
         }
 
@@ -647,6 +826,7 @@ public class JoyManApiService extends NanoHTTPD
                 if (issueJson.has("subject"))
                 {
                     existingTask.setTitle(issueJson.get("subject").getAsString());
+                    logUtils.d(TAG, "updateIssue: Set subject to: " + existingTask.getTitle());
                 }
 
                 if (issueJson.has("description"))
@@ -657,6 +837,7 @@ public class JoyManApiService extends NanoHTTPD
                 if (issueJson.has("status_id"))
                 {
                     existingTask.setStatus(issueJson.get("status_id").getAsInt());
+                    logUtils.d(TAG, "updateIssue: Set status_id to: " + existingTask.getStatus());
                 }
 
                 if (issueJson.has("priority"))
@@ -667,6 +848,7 @@ public class JoyManApiService extends NanoHTTPD
                 if (issueJson.has("priority_id"))
                 {
                     existingTask.setPriority(issueJson.get("priority_id").getAsInt());
+                    logUtils.d(TAG, "updateIssue: Set priority_id to: " + existingTask.getPriority());
                 }
 
                 if (issueJson.has("project_id"))
@@ -685,6 +867,7 @@ public class JoyManApiService extends NanoHTTPD
                     {
                         existingTask.setParentId(null);
                     }
+                    logUtils.d(TAG, "updateIssue: Set parent_issue_id to: " + (existingTask.getParentId() != null ? existingTask.getParentId() : "null (removed)"));
                 }
 
                 // ✅ 新增：支持 notes 参数追加评论
@@ -702,13 +885,18 @@ public class JoyManApiService extends NanoHTTPD
 
             taskRepository.update(existingTask);
             logUtils.i(TAG, "updateIssue: Updated issue " + issueId);
+            logUtils.d(TAG, "updateIssue: === END (success) ===");
 
             JsonObject responseIssueJson = ApiJsonConverter.taskToIssueJson(existingTask, null);
+            JsonObject responseJson = new JsonObject();
+            responseJson.add("issue", responseIssueJson);
+
             return createCorsResponse(Response.Status.OK, "application/json", responseIssueJson.toString());
         }
         catch (Exception e)
         {
             logUtils.e(TAG, "updateIssue: Error processing request", e);
+            logUtils.d(TAG, "updateIssue: === END (error) ===");
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid request data: " + e.getMessage() + "\"}");
         }
     }
@@ -719,6 +907,7 @@ public class JoyManApiService extends NanoHTTPD
         Task existingTask = taskRepository.getTaskById(issueId);
         if (existingTask == null)
         {
+            logUtils.w(TAG, "deleteIssue: Issue " + issueId + " not found");
             return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Issue not found\"}");
         }
 
@@ -741,9 +930,11 @@ public class JoyManApiService extends NanoHTTPD
         String password = params.get("password");
         if (username != null && password != null)
         {
+            logUtils.w(TAG, "authenticate: URL parameters used (not recommended)");
             return validateCredentials(username, password);
         }
 
+        logUtils.w(TAG, "authenticate: No credentials provided");
         return false;
     }
 
@@ -758,6 +949,7 @@ public class JoyManApiService extends NanoHTTPD
             {
                 String username = credentials.substring(0, index);
                 String password = credentials.substring(index + 1);
+                logUtils.d(TAG, "authenticateBasic: User=" + username);
                 return validateCredentials(username, password);
             }
         }
@@ -794,6 +986,7 @@ public class JoyManApiService extends NanoHTTPD
         }
         catch (NumberFormatException e)
         {
+            logUtils.w(TAG, "parseIntSafe: Invalid value '" + value + "', using default " + defaultValue);
             return defaultValue;
         }
     }
@@ -801,8 +994,29 @@ public class JoyManApiService extends NanoHTTPD
     private Response getIssues(IHTTPSession session)
     {
         logUtils.d(TAG, "getIssues: Listing all issues");
+        logUtils.d(TAG, "getIssues: === 参数调试 START ===");
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0)
+        {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "getIssues: Query String: " + queryString);
+        logUtils.d(TAG, "getIssues: URI: " + fullUri);
 
         Map<String, String> params = session.getParms();
+        logUtils.d(TAG, "getIssues: params size: " + (params != null ? params.size() : 0));
+        if (params != null)
+        {
+            for (Map.Entry<String, String> entry : params.entrySet())
+            {
+                logUtils.d(TAG, "getIssues: params[" + entry.getKey() + "] = " + entry.getValue());
+            }
+        }
+        logUtils.d(TAG, "getIssues: params.get(\"project_id\") = " + (params != null ? params.get("project_id") : "params is null"));
+        logUtils.d(TAG, "getIssues: === 参数调试 END ===");
+
         int limit = parseIntSafe(params.get("limit"), 25);
         int offset = parseIntSafe(params.get("offset"), 0);
 
@@ -817,7 +1031,7 @@ public class JoyManApiService extends NanoHTTPD
         }
         catch (NumberFormatException e)
         {
-            logUtils.w(TAG, "getIssues: Invalid project_id");
+            logUtils.w(TAG, "getIssues: Invalid project_id: " + params.get("project_id"));
         }
         final Long projectId = projectIdTmp;
 
@@ -832,15 +1046,21 @@ public class JoyManApiService extends NanoHTTPD
         }
         catch (NumberFormatException e)
         {
-            logUtils.w(TAG, "getIssues: Invalid status_id");
+            logUtils.w(TAG, "getIssues: Invalid status_id: " + params.get("status_id"));
         }
         final Integer statusId = statusIdTmp;
+
+        String query = params.get("query");
+        String sort = params.get("sort");
+
+        logUtils.d(TAG, "getIssues: Filters - project_id=" + projectId + ", status_id=" + statusId + ", query=" + query + ", limit=" + limit + ", offset=" + offset + ", sort=" + sort);
 
         List<Task> allTasks = taskRepository.getAllTasks();
         if (allTasks == null)
         {
             allTasks = new ArrayList<>();
         }
+        logUtils.d(TAG, "getIssues: Retrieved " + allTasks.size() + " tasks from database (sync query)");
 
         List<Task> filteredTasks = allTasks.stream()
             .filter(task ->
@@ -853,11 +1073,36 @@ public class JoyManApiService extends NanoHTTPD
                 {
                     return false;
                 }
+                if (query != null && !query.isEmpty())
+                {
+                    String lowerQuery = query.toLowerCase();
+                    boolean matchesTitle = task.getTitle().toLowerCase().contains(lowerQuery);
+                    boolean matchesDesc = task.getDescription() != null && task.getDescription().toLowerCase().contains(lowerQuery);
+                    if (!matchesTitle && !matchesDesc)
+                    {
+                        return false;
+                    }
+                }
                 return true;
             })
             .collect(Collectors.toList());
 
-        filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
+        if ("updated_on:desc".equals(sort))
+        {
+            filteredTasks.sort((a, b) -> Long.compare(b.getUpdatedAt(), a.getUpdatedAt()));
+        }
+        else if ("updated_on:asc".equals(sort))
+        {
+            filteredTasks.sort((a, b) -> Long.compare(a.getUpdatedAt(), b.getUpdatedAt()));
+        }
+        else if ("created_on:desc".equals(sort))
+        {
+            filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
+        }
+        else
+        {
+            filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
+        }
 
         int totalCount = filteredTasks.size();
         int fromIndex = Math.min(offset, totalCount);
@@ -881,11 +1126,15 @@ public class JoyManApiService extends NanoHTTPD
             if (postData == null || postData.isEmpty())
             {
                 postData = files.get("content");
+                if (postData != null && !postData.isEmpty())
+                {
+                    logUtils.d(TAG, "createIssue: Got data from 'content' key (chunked encoding)");
+                }
             }
         }
         catch (IOException | ResponseException e)
         {
-            logUtils.e(TAG, "createIssue: parseBody failed", e);
+            logUtils.e(TAG, "createIssue: parseBody failed, trying stream", e);
         }
 
         if (postData == null || postData.isEmpty())
@@ -900,13 +1149,16 @@ public class JoyManApiService extends NanoHTTPD
 
         if (isFilePath(postData))
         {
+            logUtils.d(TAG, "createIssue: Detected file path, reading file content...");
             String fileContent = readFileContent(postData);
             if (fileContent != null)
             {
                 postData = fileContent;
+                logUtils.d(TAG, "createIssue: Successfully read file content, length: " + postData.length());
             }
             else
             {
+                logUtils.e(TAG, "createIssue: Failed to read file content");
                 return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to read request data\"}");
             }
         }
@@ -950,6 +1202,7 @@ public class JoyManApiService extends NanoHTTPD
         {
             projects = new ArrayList<>();
         }
+        logUtils.d(TAG, "getProjects: Retrieved " + projects.size() + " projects from database (sync query)");
 
         JsonObject responseJson = ApiJsonConverter.projectsToJson(projects);
         logUtils.i(TAG, "getProjects: Returned " + projects.size() + " projects");
@@ -968,6 +1221,10 @@ public class JoyManApiService extends NanoHTTPD
             if (postData == null || postData.isEmpty())
             {
                 postData = files.get("content");
+                if (postData != null && !postData.isEmpty())
+                {
+                    logUtils.d(TAG, "createProject: Got data from 'content' key (chunked encoding)");
+                }
             }
         }
         catch (IOException | ResponseException e)
@@ -984,6 +1241,25 @@ public class JoyManApiService extends NanoHTTPD
         {
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"No data provided\"}");
         }
+
+        if (isFilePath(postData))
+        {
+            logUtils.d(TAG, "createProject: Detected file path, reading file content...");
+            String fileContent = readFileContent(postData);
+            if (fileContent != null)
+            {
+                postData = fileContent;
+                logUtils.d(TAG, "createProject: Successfully read file content, length: " + postData.length());
+            }
+            else
+            {
+                logUtils.e(TAG, "createProject: Failed to read file content");
+                return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to read request data\"}");
+            }
+        }
+
+        postData = cleanChunkedData(postData);
+        logUtils.d(TAG, "createProject: Received data: " + postData);
 
         String jsonResponse = "{\"project\":{\"id\":0,\"message\":\"TODO: Implement project creation\"}}";
         return createCorsResponse(Response.Status.CREATED, "application/json", jsonResponse);
