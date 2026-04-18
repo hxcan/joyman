@@ -4,18 +4,18 @@ import android.app.Application;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
+import com.stupidbeauty.joyman.data.database.AppDatabase;
 import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.repository.TaskRepository;
 
 import java.util.List;
 
-
 /**
  * Task ViewModel
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.5
+ * @version 1.0.6
  * @since 2026-03-31
  */
 public class TaskViewModel extends AndroidViewModel {
@@ -37,6 +37,14 @@ public class TaskViewModel extends AndroidViewModel {
      */
     public TaskDao getTaskDao() {
         return repository.getTaskDao();
+    }
+    
+    /**
+     * 获取 AppDatabase 实例
+     * @return AppDatabase 实例
+     */
+    public AppDatabase getAppDatabase() {
+        return AppDatabase.getInstance(getApplication());
     }
     
     public LiveData<List<Task>> getAllTasks() {
