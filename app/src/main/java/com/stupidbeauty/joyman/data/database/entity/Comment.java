@@ -4,12 +4,13 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.Index;
 import androidx.room.ForeignKey;
+import androidx.room.ColumnInfo;
 
 /**
  * 评论实体类
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.0.1
  * @since 2026-04-18
  */
 @Entity(
@@ -29,9 +30,16 @@ public class Comment {
     @PrimaryKey(autoGenerate = true)
     private long id;
     
+    @ColumnInfo(name = "issue_id")
     private long issueId;           // 关联的任务 ID
+    
+    @ColumnInfo(name = "content")
     private String content;         // 评论内容
+    
+    @ColumnInfo(name = "author")
     private String author;          // 评论作者
+    
+    @ColumnInfo(name = "created_on")
     private long createdOn;         // 创建时间（时间戳）
     
     public Comment() {}
