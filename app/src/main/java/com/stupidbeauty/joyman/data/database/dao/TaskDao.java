@@ -9,6 +9,7 @@ import androidx.room.Query;
 import androidx.room.Update;
 
 import com.stupidbeauty.joyman.data.database.entity.Task;
+import com.stupidbeauty.joyman.data.database.entity.Comment;
 
 import java.util.List;
 
@@ -17,7 +18,7 @@ import java.util.List;
  * Task 数据访问对象（DAO）
  * 
  * @author 太极美术工程狮狮长
- * @version 2.0.4
+ * @version 2.0.5
  * @since 2026-03-31
  */
 @Dao
@@ -150,4 +151,13 @@ public interface TaskDao {
      */
     @Query("SELECT COUNT(*) FROM tasks WHERE parent_id = :parentId")
     int countSubtasks(long parentId);
+    
+    /**
+     * 获取任务的所有评论（同步版本）
+     * 用于 JoyManApiService 的 include=journals 功能
+     * @param issueId 任务 ID
+     * @return 评论列表
+     */
+    @Query("SELECT * FROM comments WHERE issue_id = :issueId ORDER BY created_on ASC")
+    List<Comment> getCommentsByIssueId(long issueId);
 }
