@@ -16,7 +16,7 @@ import java.util.List;
  * Comment 数据访问对象（DAO）
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.1
+ * @version 1.0.2
  * @since 2026-04-18
  */
 @Dao
