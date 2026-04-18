@@ -22,7 +22,7 @@ import java.util.Locale;
  * 评论列表适配器
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.0.1
  * @since 2026-04-18
  */
 public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentViewHolder> {
@@ -74,12 +74,12 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
     }
     
     /**
-     * 添加单条评论
+     * 添加单条评论到列表末尾（最新评论在底部）
      * @param comment 评论对象
      */
     public void addComment(Comment comment) {
-        this.commentList.add(0, comment); // 添加到开头（最新的在前）
-        notifyItemInserted(0);
+        this.commentList.add(comment); // 添加到末尾
+        notifyItemInserted(commentList.size() - 1);
     }
     
     /**
