@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 
 import fi.iki.elonen.NanoHTTPD;
 
-
 /**
  * JoyMan REST API 服务器 - 带详细调试日志
  */
@@ -92,8 +91,7 @@ public class JoyManApiService extends NanoHTTPD {
     }
 
     /**
-     * 动态获取当前支持的API端点列表（运行时刻列举，不写死）
-     * 可根据实际情况扩展，如从配置文件、注解或数据库读取
+     * 动态获取当前支持的 API 端点列表（运行时刻列举，不写死）
      */
     private Map<String, List<String>> getAvailableEndpoints() {
         Map<String, List<String>> endpoints = new HashMap<>();
@@ -107,7 +105,7 @@ public class JoyManApiService extends NanoHTTPD {
     }
     
     /**
-     * 构建可用端点的JSON响应
+     * 构建可用端点的 JSON 响应
      */
     private String buildAvailableEndpointsJson() {
         Map<String, List<String>> endpoints = getAvailableEndpoints();
@@ -131,24 +129,32 @@ public class JoyManApiService extends NanoHTTPD {
 
     /**
      * 清理 Chunked Transfer Encoding 的数据
-     * 修复：同时清理 JSON 开头和 Chunked 结尾标记（\r\n0\r\n, \r\n0\n 等）
+     * 修复：移除错误的 JSON 起始位置查找逻辑，避免截断合法的 JSON 内容
+     * 
+     * 问题原因：
+     * - 原代码使用 indexOf('{') 查找 JSON 起始位置，但当描述字段包含 Markdown 格式的 JSON 代码块时（如 ```json），
+     *   会错误地定位到描述内容中的 { 字符，导致截断了真正的 JSON 开头
+     * - NanoHTTPD 的 parseBody 已经正确处理了 Chunked Encoding，不需要额外处理
+     * 
+     * 解决方案：
+     * - 直接信任 parseBody 返回的数据是完整的
+     * - 只清理可能的 Chunked 结尾标记（\r\n0\r\n 等）
+     * - 添加详细日志用于调试
      */
     private String cleanChunkedData(String data) {
         if (data == null || data.isEmpty()) {
             return data;
         }
 
+        logUtils.d(TAG, "cleanChunkedData: === START ===");
         logUtils.d(TAG, "cleanChunkedData: Original data length: " + data.length());
-        logUtils.d(TAG, "cleanChunkedData: Data preview (first 200 chars): " + (data.length() > 200 ? data.substring(0, 200) + "..." : data));
+        logUtils.d(TAG, "cleanChunkedData: Original data preview (first 300 chars): " + 
+            (data.length() > 300 ? data.substring(0, 300) + "..." : data));
 
-        // 1. 找到 JSON 开始位置
-        int jsonStart = Math.max(data.indexOf('{'), data.indexOf('['));
-        if (jsonStart > 0) {
-            logUtils.d(TAG, "cleanChunkedData: Found JSON start at index " + jsonStart);
-            data = data.substring(jsonStart);
-        }
-
-        // 2. 清理 Chunked Encoding 的结尾标记
+        // 不再查找并截取 JSON 起始位置，直接使用原始数据
+        // 原因：描述字段中可能包含 Markdown 格式的 JSON 代码块，导致 indexOf('{') 定位错误
+        
+        // 仅清理可能的 Chunked Encoding 结尾标记
         String[] chunkedEndings = {
             "\r\n0\r\n",
             "\r\n0\n",
@@ -158,6 +164,7 @@ public class JoyManApiService extends NanoHTTPD {
             "\n0"
         };
 
+        String originalData = data;
         for (String ending : chunkedEndings) {
             if (data.endsWith(ending)) {
                 logUtils.d(TAG, "cleanChunkedData: Removing chunked ending: " + escapeSpecialChars(ending));
@@ -166,11 +173,21 @@ public class JoyManApiService extends NanoHTTPD {
             }
         }
 
-        // 3. 再次检查并移除可能的残留空白字符
+        // 移除首尾空白字符
         data = data.trim();
 
         logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + data.length());
-        logUtils.d(TAG, "cleanChunkedData: Cleaned data preview: " + (data.length() > 200 ? data.substring(0, 200) + "..." : data));
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data preview (first 300 chars): " + 
+            (data.length() > 300 ? data.substring(0, 300) + "..." : data));
+        
+        if (!originalData.equals(data)) {
+            logUtils.d(TAG, "cleanChunkedData: Data was modified (length changed from " + 
+                originalData.length() + " to " + data.length() + ")");
+        } else {
+            logUtils.d(TAG, "cleanChunkedData: Data unchanged (no chunked markers found)");
+        }
+        
+        logUtils.d(TAG, "cleanChunkedData: === END ===");
 
         return data;
     }
@@ -408,8 +425,6 @@ public class JoyManApiService extends NanoHTTPD {
 
     /**
      * 处理 /search.json 请求
-     * 兼容 Redmine REST API 搜索接口
-     * 参考：https://www.redmine.org/projects/redmine/wiki/Rest_Search
      */
     private Response handleSearch(IHTTPSession session, Method method) {
         if (!Method.GET.equals(method)) {
@@ -419,7 +434,6 @@ public class JoyManApiService extends NanoHTTPD {
 
         Map<String, String> params = session.getParms();
         
-        // 获取搜索参数
         String query = params.get("q");
         String issuesFlag = params.get("issues");
         int offset = parseIntSafe(params.get("offset"), 0);
@@ -427,9 +441,7 @@ public class JoyManApiService extends NanoHTTPD {
         
         logUtils.d(TAG, "handleSearch: q=" + query + ", issues=" + issuesFlag + ", limit=" + limit + ", offset=" + offset);
         
-        // 只支持 issues 搜索（JoyMan 暂不支持 news/wiki 等）
         if (issuesFlag == null || !"1".equals(issuesFlag)) {
-            // 如果没有指定 issues=1，返回空结果（兼容 Redmine API）
             JsonObject emptyResponse = new JsonObject();
             emptyResponse.add("results", new JsonArray());
             emptyResponse.addProperty("total_count", 0);
@@ -438,9 +450,7 @@ public class JoyManApiService extends NanoHTTPD {
             return createCorsResponse(Response.Status.OK, "application/json", emptyResponse.toString());
         }
         
-        // 执行搜索
         if (query == null || query.trim().isEmpty()) {
-            // 没有关键词，返回所有任务（降级行为）
             logUtils.w(TAG, "handleSearch: No query provided, returning all issues");
             return getIssues(session);
         }
@@ -448,7 +458,6 @@ public class JoyManApiService extends NanoHTTPD {
         try {
             List<Task> results = searchTasks(query, limit, offset);
             
-            // 构建 Redmine 风格的响应
             JsonArray resultsArray = new JsonArray();
             for (Task task : results) {
                 JsonObject result = new JsonObject();
@@ -459,7 +468,6 @@ public class JoyManApiService extends NanoHTTPD {
                 result.addProperty("description", task.getDescription() != null ? task.getDescription() : "");
                 result.addProperty("datetime", formatDateTime(task.getCreatedAt()));
                 
-                // 添加项目信息
                 if (task.getProjectId() != null) {
                     Project project = projectRepository.getProjectById(task.getProjectId());
                     if (project != null) {
@@ -491,10 +499,8 @@ public class JoyManApiService extends NanoHTTPD {
 
     /**
      * 执行任务搜索（使用内存过滤模拟 SQL LIKE）
-     * 参考 Redmine 实现：分词处理，最多 5 个 token，每个≥2 字符
      */
     private List<Task> searchTasks(String query, int limit, int offset) {
-        // 1. 分词处理（Redmine 风格）
         String[] tokens = query.split("\\s+");
         List<String> validTokens = new ArrayList<>();
         for (String token : tokens) {
@@ -510,18 +516,15 @@ public class JoyManApiService extends NanoHTTPD {
         
         logUtils.d(TAG, "searchTasks: Searching with tokens: " + validTokens);
         
-        // 2. 获取所有任务并在内存中过滤（模拟 SQL LIKE）
         List<Task> allTasks = taskRepository.getAllTasks();
         if (allTasks == null || allTasks.isEmpty()) {
             return new ArrayList<>();
         }
         
-        // 3. 内存过滤（模拟 SQL LIKE: WHERE title LIKE '%token%' OR description LIKE '%token%'）
         List<Task> filteredTasks = new ArrayList<>();
         for (Task task : allTasks) {
             boolean matches = true;
             
-            // 所有 token 都必须匹配（AND 逻辑，参考 Redmine）
             for (String token : validTokens) {
                 String lowerToken = token.toLowerCase();
                 boolean titleMatch = task.getTitle().toLowerCase().contains(lowerToken);
@@ -539,10 +542,8 @@ public class JoyManApiService extends NanoHTTPD {
             }
         }
         
-        // 4. 排序（按创建时间倒序）
         filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
         
-        // 5. 分页
         int totalCount = filteredTasks.size();
         int fromIndex = Math.min(offset, totalCount);
         int toIndex = Math.min(offset + limit, totalCount);
@@ -750,7 +751,7 @@ public class JoyManApiService extends NanoHTTPD {
             JsonObject responseJson = new JsonObject();
             responseJson.add("issue", responseIssueJson);
 
-            return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
+            return createCorsResponse(Response.Status.OK, "application/json", responseIssueJson.toString());
         } catch (Exception e) {
             logUtils.e(TAG, "updateIssue: Error processing request", e);
             logUtils.d(TAG, "updateIssue: === END (error) ===");
