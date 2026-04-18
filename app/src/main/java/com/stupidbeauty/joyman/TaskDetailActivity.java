@@ -28,8 +28,10 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.stupidbeauty.joyman.data.database.entity.Comment;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
+import com.stupidbeauty.joyman.ui.adapter.CommentAdapter;
 import com.stupidbeauty.joyman.ui.adapter.ParentTaskAdapter;
 import com.stupidbeauty.joyman.ui.adapter.SubtaskAdapter;
 import com.stupidbeauty.joyman.util.LogUtils;
@@ -47,7 +49,7 @@ import java.util.concurrent.Executors;
  * 任务详情界面
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.17
+ * @version 1.0.18
  * @since 2026-04-01
  */
 public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdapter.OnSubtaskClickListener {
@@ -83,6 +85,14 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
     private CardView cardParentTask;
     private TextView textParentTaskTitle;
     private Button btnLinkParentTask;
+    
+    // 评论功能相关
+    private TextView textCommentsTitle;
+    private EditText editCommentInput;
+    private Button btnSendComment;
+    private RecyclerView recyclerViewComments;
+    private TextView textNoComments;
+    private CommentAdapter commentAdapter;
     
     private List<Project> projectList;
     private Long pendingProjectId;
@@ -122,6 +132,7 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         loadTask();
         loadProjects();
         loadSubtasks();
+        loadComments();
         
         LogUtils.getInstance().d(TAG, "onCreate: END");
     }
@@ -160,14 +171,29 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         textParentTaskTitle = findViewById(R.id.text_parent_task_title);
         btnLinkParentTask = findViewById(R.id.btn_link_parent_task);
         
+        // 评论功能初始化
+        textCommentsTitle = findViewById(R.id.text_comments_title);
+        editCommentInput = findViewById(R.id.edit_comment_input);
+        btnSendComment = findViewById(R.id.btn_send_comment);
+        recyclerViewComments = findViewById(R.id.recycler_view_comments);
+        textNoComments = findViewById(R.id.text_no_comments);
+        
+        // 初始化子任务列表
         recyclerViewSubtasks.setLayoutManager(new LinearLayoutManager(this));
         subtaskAdapter = new SubtaskAdapter(this);
         subtaskAdapter.setOnSubtaskClickListener(this);
         recyclerViewSubtasks.setAdapter(subtaskAdapter);
         
+        // 初始化评论列表
+        recyclerViewComments.setLayoutManager(new LinearLayoutManager(this));
+        commentAdapter = new CommentAdapter(this);
+        recyclerViewComments.setAdapter(commentAdapter);
+        
+        // 设置事件监听
         btnCopyTitle.setOnClickListener(v -> copyTitleToClipboard());
         btnCreateSubtask.setOnClickListener(v -> showCreateSubtaskDialog());
         btnLinkParentTask.setOnClickListener(v -> showParentTaskSelectorDialog());
+        btnSendComment.setOnClickListener(v -> sendComment());
         
         cardParentTask.setOnClickListener(v -> {
             if (task != null && task.getParentId() != null) {
@@ -225,6 +251,62 @@ public class TaskDetailActivity extends AppCompatActivity implements SubtaskAdap
         btnSaveChanges.setOnClickListener(v -> saveAllChanges());
         findViewById(R.id.btn_move_project).setOnClickListener(v -> showMoveProjectDialog());
         findViewById(R.id.btn_delete).setOnClickListener(v -> showDeleteConfirm());
+    }
+    
+    /**
+     * 发表评论
+     */
+    private void sendComment() {
+        if (task == null) return;
+        
+        String content = editCommentInput.getText().toString().trim();
+        if (content.isEmpty()) {
+            Toast.makeText(this, "评论内容不能为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 在后台线程保存评论
+        Executors.newSingleThreadExecutor().execute(() -> {
+            Comment comment = new Comment(taskId, content, "用户");
+            long commentId = taskViewModel.getAppDatabase().commentDao().insert(comment);
+            
+            runOnUiThread(() -> {
+                if (commentId > 0) {
+                    Toast.makeText(TaskDetailActivity.this, "评论已发表", Toast.LENGTH_SHORT).show();
+                    editCommentInput.setText("");
+                    // 重新加载评论列表
+                    loadComments();
+                } else {
+                    Toast.makeText(TaskDetailActivity.this, "评论发表失败", Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+    
+    /**
+     * 加载评论列表
+     */
+    private void loadComments() {
+        taskViewModel.getAppDatabase().commentDao().getCommentsByIssueIdLive(taskId).observe(this, comments -> {
+            updateCommentList(comments);
+        });
+    }
+    
+    /**
+     * 更新评论列表 UI
+     */
+    private void updateCommentList(List<Comment> comments) {
+        if (comments == null || comments.isEmpty()) {
+            textCommentsTitle.setVisibility(View.GONE);
+            recyclerViewComments.setVisibility(View.GONE);
+            textNoComments.setVisibility(View.VISIBLE);
+            commentAdapter.clear();
+        } else {
+            textCommentsTitle.setVisibility(View.VISIBLE);
+            recyclerViewComments.setVisibility(View.VISIBLE);
+            textNoComments.setVisibility(View.GONE);
+            commentAdapter.setComments(comments);
+        }
     }
     
     private void updateSaveButtonState() {
