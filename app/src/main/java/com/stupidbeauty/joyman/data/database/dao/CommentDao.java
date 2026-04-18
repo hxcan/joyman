@@ -16,7 +16,7 @@ import java.util.List;
  * Comment 数据访问对象（DAO）
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.0
+ * @version 1.0.1
  * @since 2026-04-18
  */
 @Dao
@@ -63,19 +63,19 @@ public interface CommentDao {
     int deleteById(long commentId);
     
     /**
-     * 根据任务 ID 获取所有评论（倒序排列，最新的在前）
+     * 根据任务 ID 获取所有评论（正序排列，时间早的在上，最新的在下）
      * @param issueId 任务 ID
      * @return 评论列表
      */
-    @Query("SELECT * FROM comments WHERE issue_id = :issueId ORDER BY created_on DESC")
+    @Query("SELECT * FROM comments WHERE issue_id = :issueId ORDER BY created_on ASC")
     List<Comment> getCommentsByIssueId(long issueId);
     
     /**
-     * 根据任务 ID 获取所有评论（LiveData 响应式）
+     * 根据任务 ID 获取所有评论（LiveData 响应式，正序排列）
      * @param issueId 任务 ID
      * @return 可观察的评论列表
      */
-    @Query("SELECT * FROM comments WHERE issue_id = :issueId ORDER BY created_on DESC")
+    @Query("SELECT * FROM comments WHERE issue_id = :issueId ORDER BY created_on ASC")
     LiveData<List<Comment>> getCommentsByIssueIdLive(long issueId);
     
     /**
