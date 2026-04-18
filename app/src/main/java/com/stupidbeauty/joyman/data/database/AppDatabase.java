@@ -10,18 +10,19 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
+import com.stupidbeauty.joyman.data.database.dao.CommentDao;
 import com.stupidbeauty.joyman.data.database.dao.ProjectDao;
 import com.stupidbeauty.joyman.data.database.dao.TaskDao;
+import com.stupidbeauty.joyman.data.database.entity.Comment;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.LogUtils;
 
 
-
 /**
  * JoyMan 应用数据库
  */
-@Database(entities = {Task.class, Project.class}, version = 4, exportSchema = false)
+@Database(entities = {Task.class, Project.class, Comment.class}, version = 5, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     
     private static final String DATABASE_NAME = "joyman-db";
@@ -30,6 +31,7 @@ public abstract class AppDatabase extends RoomDatabase {
     
     public abstract TaskDao taskDao();
     public abstract ProjectDao projectDao();
+    public abstract CommentDao commentDao();
     
     public static AppDatabase getInstance(Context context) {
         if (INSTANCE == null) {
@@ -45,7 +47,7 @@ public abstract class AppDatabase extends RoomDatabase {
     @NonNull
     private static AppDatabase buildDatabase(Context context) {
         return Room.databaseBuilder(context, AppDatabase.class, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -137,6 +139,33 @@ public abstract class AppDatabase extends RoomDatabase {
             } else {
                 LogUtils.getInstance().w(TAG, "MIGRATION_3_4: ⚠️ parent_id column already exists, skipping");
             }
+        }
+    };
+    
+    /**
+     * 数据库迁移：版本 4 → 版本 5
+     * 创建 comments 表以支持任务评论功能
+     */
+    static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            LogUtils.getInstance().d(TAG, "MIGRATION_4_5: START - Creating comments table for comment feature");
+            
+            // 创建 comments 表
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `comments` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`issue_id` INTEGER NOT NULL, " +
+                "`content` TEXT NOT NULL, " +
+                "`author` TEXT NOT NULL, " +
+                "`created_on` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+            );
+            
+            // 创建 issue_id 索引优化查询性能
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_comments_issue_id ON comments(issue_id)");
+            
+            LogUtils.getInstance().i(TAG, "MIGRATION_4_5: ✅ comments table created successfully");
         }
     };
     
