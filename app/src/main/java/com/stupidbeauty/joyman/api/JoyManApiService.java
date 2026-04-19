@@ -686,7 +686,7 @@ public class JoyManApiService extends NanoHTTPD
         // 🔍 [DEBUG] 第 1 行日志
         logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
 
-        // 支持 children（子任务）
+        // 🔍 [DEBUG] 第 1 行日志
         // 支持 children（子任务）
         if (include != null && Arrays.asList(include.split(",")).contains("children"))
         {
@@ -741,6 +741,9 @@ public class JoyManApiService extends NanoHTTPD
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
         }
+        // 🔍 [DEBUG] 第 3 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
+
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
         }
