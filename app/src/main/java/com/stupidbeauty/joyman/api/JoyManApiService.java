@@ -712,6 +712,7 @@ public class JoyManApiService extends NanoHTTPD
             // 🔍 [DEBUG] 第 2 行日志
             logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             if (comments == null)
+            {
                 comments = new ArrayList<>();
 
             // 🔍 [DEBUG] 第 2 行日志
@@ -734,13 +735,14 @@ public class JoyManApiService extends NanoHTTPD
                 // notes 字段（评论内容）
                 journal.addProperty("notes", comment.getContent() != null ? comment.getContent() : "");
 
-                // created_on 字段
-                journal.addProperty("created_on", formatDateTime(comment.getCreatedOn()));
-
             // 🔍 [DEBUG] 第 3 行日志
             logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
 
+                // created_on 字段
+                journal.addProperty("created_on", formatDateTime(comment.getCreatedOn()));
+
                 journalsArray.add(journal);
+            }
 
         // 🔍 [DEBUG] 第 3 行日志
         logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
