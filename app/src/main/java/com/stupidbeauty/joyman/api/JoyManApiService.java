@@ -705,13 +705,13 @@ public class JoyManApiService extends NanoHTTPD
         {
             logUtils.d(TAG, "getIssue: include=journals requested, fetching comments");
             List<Comment> comments = taskRepository.getTaskDao().getCommentsByIssueId(issueId);
-            if (comments == null)
-
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             {
                 comments = new ArrayList<>();
             }
+
+            // 🔍 [DEBUG] 第 2 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
+            if (comments == null)
 
             // 按 Redmine 格式返回 journals 数组
             JsonArray journalsArray = new JsonArray();
