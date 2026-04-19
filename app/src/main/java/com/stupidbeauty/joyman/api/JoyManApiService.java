@@ -30,7 +30,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import fi.iki.elonen.NanoHTTPD;
 
-
 /**
  * JoyMan REST API 服务器 - 带详细调试日志
  */
@@ -91,7 +90,587 @@ public class JoyManApiService extends NanoHTTPD
         return normalized;
     }
 
-    
+    /**
+     * 动态获取当前支持的 API 端点列表（运行时刻列举，不写死）
+     */
+    private Map<String, List<String>> getAvailableEndpoints()
+    {
+        Map<String, List<String>> endpoints = new HashMap<>();
+        endpoints.put("issues.json", Arrays.asList("GET", "POST"));
+        endpoints.put("issues/{id}.json", Arrays.asList("GET", "PUT", "DELETE"));
+        endpoints.put("search.json", Arrays.asList("GET"));
+        endpoints.put("projects.json", Arrays.asList("GET", "POST"));
+        return endpoints;
+    }
+
+    /**
+     * 构建可用端点的 JSON 响应
+     */
+    private String buildAvailableEndpointsJson()
+    {
+        Map<String, List<String>> endpoints = getAvailableEndpoints();
+        JsonObject root = new JsonObject();
+        JsonArray endpointsArray = new JsonArray();
+        for (Map.Entry<String, List<String>> entry : endpoints.entrySet())
+        {
+            JsonObject endpoint = new JsonObject();
+            endpoint.addProperty("path", entry.getKey());
+            JsonArray methodsArray = new JsonArray();
+            for (String method : entry.getValue())
+            {
+                methodsArray.add(method);
+            }
+            endpoint.add("methods", methodsArray);
+            endpointsArray.add(endpoint);
+        }
+        root.add("endpoints", endpointsArray);
+        return root.toString();
+    }
+
+    /**
+     * 清理 Chunked Transfer Encoding 的数据
+     * 修复：移除错误的 JSON 起始位置查找逻辑，避免截断合法的 JSON 内容
+     *
+     * 问题原因：
+     * - 原代码使用 indexOf('{') 查找 JSON 起始位置，但当描述字段包含 Markdown 格式的 JSON 代码块时（如 ```json），
+     * 会错误地定位到描述内容中的 { 字符，导致截断了真正的 JSON 开头
+     * - NanoHTTPD 的 parseBody 已经正确处理了 Chunked Encoding，不需要额外处理
+     *
+     * 解决方案：
+     * - 直接信任 parseBody 返回的数据是完整的
+     * - 只清理可能的 Chunked 结尾标记（\r\n0\r\n 等）
+     * - 添加详细日志用于调试
+     */
+    private String cleanChunkedData(String data)
+    {
+        if (data == null || data.isEmpty())
+        {
+            return data;
+        }
+        logUtils.d(TAG, "cleanChunkedData: === START ===");
+        logUtils.d(TAG, "cleanChunkedData: Original data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Original data preview (first 300 chars): " + (data.length() > 300 ? data.substring(0, 300) + "..." : data));
+
+        // 不再查找并截取 JSON 起始位置，直接使用原始数据
+        // 原因：描述字段中可能包含 Markdown 格式的 JSON 代码块，导致 indexOf('{') 定位错误
+        // 仅清理可能的 Chunked Encoding 结尾标记
+        String[] chunkedEndings = {
+            "\r\n0\r\n", "\r\n0\n", "\n0\r\n", "\n0\n", "\r\n0", "\n0"
+        };
+        String originalData = data;
+        for (String ending : chunkedEndings)
+        {
+            if (data.endsWith(ending))
+            {
+                logUtils.d(TAG, "cleanChunkedData: Removing chunked ending: " + escapeSpecialChars(ending));
+                data = data.substring(0, data.length() - ending.length());
+                break;
+            }
+        }
+
+        // 移除首尾空白字符
+        data = data.trim();
+
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data preview (first 300 chars): " + (data.length() > 300 ? data.substring(0, 300) + "..." : data));
+
+        if (!originalData.equals(data))
+        {
+            logUtils.d(TAG, "cleanChunkedData: Data was modified (length changed from " + originalData.length() + " to " + data.length() + ")");
+        }
+        else
+        {
+            logUtils.d(TAG, "cleanChunkedData: Data unchanged (no chunked markers found)");
+        }
+
+        logUtils.d(TAG, "cleanChunkedData: === END ===");
+        return data;
+    }
+
+    /**
+     * 转义特殊字符用于日志显示
+     */
+    private String escapeSpecialChars(String str)
+    {
+        return str.replace("\r", "\\r").replace("\n", "\\n");
+    }
+
+    /**
+     * 检测字符串是否为文件路径
+     */
+    private boolean isFilePath(String path)
+    {
+        if (path == null || path.isEmpty())
+        {
+            return false;
+        }
+        return (path.startsWith("/") || path.startsWith("C:") || path.startsWith("D:")) &&
+               (path.contains("/cache/") || path.contains("\\cache\\") ||
+                path.contains("/tmp/") || path.contains("\\tmp\\") ||
+                path.contains("NanoHTTPD"));
+    }
+
+    /**
+     * 从文件读取内容（Android 兼容方式，支持 API 24+）
+     */
+    private String readFileContent(String filePath)
+    {
+        try
+        {
+            logUtils.d(TAG, "readFileContent: Reading file: " + filePath);
+            File file = new File(filePath);
+            if (!file.exists())
+            {
+                logUtils.e(TAG, "readFileContent: File does not exist: " + filePath);
+                return null;
+            }
+
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            FileInputStream inputStream = null;
+            try
+            {
+                inputStream = new FileInputStream(file);
+                byte[] data = new byte[8192];
+                int nRead;
+                while ((nRead = inputStream.read(data, 0, data.length)) != -1)
+                {
+                    buffer.write(data, 0, nRead);
+                }
+                buffer.flush();
+                String content = buffer.toString(StandardCharsets.UTF_8.name());
+                logUtils.d(TAG, "readFileContent: File size: " + content.length() + " chars");
+                logUtils.d(TAG, "readFileContent: Content preview: " + (content.length() > 200 ? content.substring(0, 200) + "..." : content));
+                return content;
+            }
+            finally
+            {
+                if (inputStream != null)
+                {
+                    try
+                    {
+                        inputStream.close();
+                    }
+                    catch (IOException e)
+                    {
+                        logUtils.w(TAG, "readFileContent: Error closing stream: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            logUtils.e(TAG, "readFileContent: Error reading file: " + filePath, e);
+            return null;
+        }
+    }
+
+    /**
+     * 从输入流读取请求体（带详细调试日志）
+     */
+    private String readRequestBodyFromStream(IHTTPSession session)
+    {
+        logUtils.d(TAG, "readRequestBodyFromStream: === START ===");
+        try
+        {
+            Map<String, String> headers = session.getHeaders();
+            logUtils.d(TAG, "readRequestBodyFromStream: Headers count: " + (headers != null ? headers.size() : 0));
+            if (headers != null)
+            {
+                for (Map.Entry<String, String> entry : headers.entrySet())
+                {
+                    logUtils.d(TAG, "readRequestBodyFromStream: Header[" + entry.getKey() + "] = " + entry.getValue());
+                }
+            }
+
+            String contentLength = headers != null ? headers.get("content-length") : null;
+            logUtils.d(TAG, "readRequestBodyFromStream: Content-Length = " + contentLength);
+            logUtils.d(TAG, "readRequestBodyFromStream: Method = " + session.getMethod());
+            logUtils.d(TAG, "readRequestBodyFromStream: URI = " + session.getUri());
+            logUtils.d(TAG, "readRequestBodyFromStream: Trying to get input stream...");
+
+            if (contentLength != null && !contentLength.isEmpty())
+            {
+                int len = Integer.parseInt(contentLength);
+                logUtils.d(TAG, "readRequestBodyFromStream: Content-Length parsed as " + len + " bytes");
+                if (len > 0)
+                {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[len];
+                    int totalRead = 0;
+                    try
+                    {
+                        int nRead;
+                        while ((nRead = session.getInputStream().read(data, 0, len)) != -1)
+                        {
+                            buffer.write(data, 0, nRead);
+                            totalRead += nRead;
+                            logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                            if (totalRead >= len)
+                            {
+                                break;
+                            }
+                        }
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success) ===");
+                        return result;
+                    }
+                    catch (Exception e)
+                    {
+                        logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream", e);
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (error) ===");
+                        return null;
+                    }
+                }
+                else
+                {
+                    logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is 0, no data to read");
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (zero length) ===");
+                    return null;
+                }
+            }
+            else
+            {
+                logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is null or empty, trying to read anyway...");
+                try
+                {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[1024];
+                    int nRead;
+                    int totalRead = 0;
+                    while ((nRead = session.getInputStream().read(data, 0, 1024)) != -1)
+                    {
+                        buffer.write(data, 0, nRead);
+                        totalRead += nRead;
+                        logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                    }
+                    if (totalRead > 0)
+                    {
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes (no Content-Length)");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success, no CL) ===");
+                        return result;
+                    }
+                    else
+                    {
+                        logUtils.w(TAG, "readRequestBodyFromStream: No data read from stream");
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (no data) ===");
+                        return null;
+                    }
+                }
+                catch (Exception e)
+                {
+                    logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream without Content-Length", e);
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (error, no CL) ===");
+                    return null;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            logUtils.e(TAG, "readRequestBodyFromStream: Unexpected error", e);
+            logUtils.d(TAG, "readRequestBodyFromStream: === END (unexpected error) ===");
+            return null;
+        }
+    }
+
+    @Override
+    public Response serve(IHTTPSession session)
+    {
+        String uri = normalizeUri(session.getUri());
+        Method method = session.getMethod();
+        logUtils.i(TAG, "Request: " + method + " " + uri + " from " + session.getRemoteIpAddress());
+
+        logUtils.d(TAG, "serve: === 原始请求信息 START ===");
+        logUtils.d(TAG, "serve: Raw URI: " + session.getUri());
+        String fullUri = session.getUri();
+        String queryString = "";
+        int queryIndex = fullUri.indexOf('?');
+        if (queryIndex >= 0)
+        {
+            queryString = fullUri.substring(queryIndex + 1);
+        }
+        logUtils.d(TAG, "serve: Query String: " + queryString);
+        logUtils.d(TAG, "serve: Method: " + method);
+        logUtils.d(TAG, "serve: Remote IP: " + session.getRemoteIpAddress());
+        logUtils.d(TAG, "serve: === 原始请求信息 END ===");
+
+        if (method.equals(Method.PUT) || method.equals(Method.POST))
+        {
+            Map<String, String> headers = session.getHeaders();
+            if (headers != null)
+            {
+                logUtils.d(TAG, "serve: Request headers for " + method + " " + uri + ":");
+                for (Map.Entry<String, String> entry : headers.entrySet())
+                {
+                    logUtils.d(TAG, "  " + entry.getKey() + ": " + entry.getValue());
+                }
+            }
+        }
+
+        if (Method.OPTIONS.equals(method))
+        {
+            logUtils.d(TAG, "serve: Handling OPTIONS preflight request");
+            return createCorsResponse(Response.Status.OK, "text/plain", "");
+        }
+
+        if (!authenticate(session))
+        {
+            logUtils.w(TAG, "serve: Authentication failed for " + uri);
+            return createCorsResponse(Response.Status.UNAUTHORIZED, "application/json", "{\"error\":\"Unauthorized\"}");
+        }
+
+        try
+        {
+            if (uri.equals("issues.json"))
+            {
+                return handleIssues(session, method);
+            }
+            else if (uri.equals("search.json"))
+            {
+                return handleSearch(session, method);
+            }
+            else if (uri.startsWith("issues/") && uri.endsWith(".json"))
+            {
+                return handleIssueDetail(session, method, uri);
+            }
+            else if (uri.equals("projects.json"))
+            {
+                return handleProjects(session, method);
+            }
+            else if (uri.startsWith("projects/") && uri.endsWith(".json"))
+            {
+                logUtils.w(TAG, "Unknown endpoint: " + uri);
+                String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
+                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
+            }
+            else
+            {
+                logUtils.w(TAG, "Unknown endpoint: " + uri);
+                String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
+                return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
+            }
+        }
+        catch (Exception e)
+        {
+            logUtils.e(TAG, "serve: Error handling request", e);
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: " + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * 处理 /search.json 请求
+     */
+    private Response handleSearch(IHTTPSession session, Method method)
+    {
+        if (!Method.GET.equals(method))
+        {
+            logUtils.w(TAG, "handleSearch: Method not allowed: " + method);
+            return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+        }
+        Map<String, String> params = session.getParms();
+        String include = params.get("include");
+
+        // 🔍 [DEBUG] 第 1 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
+        String query = params.get("q");
+        String issuesFlag = params.get("issues");
+        int offset = parseIntSafe(params.get("offset"), 0);
+        int limit = parseIntSafe(params.get("limit"), 25);
+
+        logUtils.d(TAG, "handleSearch: q=" + query + ", issues=" + issuesFlag + ", limit=" + limit + ", offset=" + offset);
+
+        if (issuesFlag == null || !"1".equals(issuesFlag))
+        {
+            JsonObject emptyResponse = new JsonObject();
+            emptyResponse.add("results", new JsonArray());
+            emptyResponse.addProperty("total_count", 0);
+            emptyResponse.addProperty("offset", offset);
+            emptyResponse.addProperty("limit", limit);
+            return createCorsResponse(Response.Status.OK, "application/json", emptyResponse.toString());
+        }
+
+            // 🔍 [DEBUG] 第 2 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
+        {
+            logUtils.w(TAG, "handleSearch: No query provided, returning all issues");
+            return getIssues(session);
+        }
+
+        try
+        {
+            List<Task> results = searchTasks(query, limit, offset);
+            JsonArray resultsArray = new JsonArray();
+            for (Task task : results)
+            {
+                JsonObject result = new JsonObject();
+                result.addProperty("id", task.getId());
+                result.addProperty("title", "Issue #" + task.getId() + ": " + task.getTitle());
+                result.addProperty("type", "issue");
+                result.addProperty("url", "/issues/" + task.getId());
+                result.addProperty("description", task.getDescription() != null ? task.getDescription() : "");
+                result.addProperty("datetime", formatDateTime(task.getCreatedAt()));
+
+                if (task.getProjectId() != null)
+                {
+        // 🔍 [DEBUG] 第 3 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
+
+        return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
+                    {
+                        JsonObject projectObj = new JsonObject();
+                        projectObj.addProperty("id", project.getId());
+                        projectObj.addProperty("name", project.getName());
+                        result.add("project", projectObj);
+                    }
+                }
+
+                resultsArray.add(result);
+            }
+
+            JsonObject response = new JsonObject();
+            response.add("results", resultsArray);
+            response.addProperty("total_count", results.size());
+            response.addProperty("offset", offset);
+            response.addProperty("limit", limit);
+
+            logUtils.i(TAG, "handleSearch: Found " + results.size() + " results for query: " + query);
+            return createCorsResponse(Response.Status.OK, "application/json", response.toString());
+        }
+        catch (Exception e)
+        {
+            logUtils.e(TAG, "handleSearch: Error executing search", e);
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Search failed: " + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * 执行任务搜索（使用内存过滤模拟 SQL LIKE）
+     */
+    private List<Task> searchTasks(String query, int limit, int offset)
+    {
+        String[] tokens = query.split("\\s+");
+        List<String> validTokens = new ArrayList<>();
+        for (String token : tokens)
+        {
+            if (token.length() >= 2 && !token.isEmpty())
+            {
+                validTokens.add(token.toLowerCase());
+            }
+        }
+
+        if (validTokens.isEmpty())
+        {
+            return new ArrayList<>();
+        }
+
+        logUtils.d(TAG, "searchTasks: Searching with tokens: " + validTokens);
+
+        List<Task> allTasks = taskRepository.getAllTasks();
+        if (allTasks == null || allTasks.isEmpty())
+        {
+            return new ArrayList<>();
+        }
+
+        List<Task> filteredTasks = new ArrayList<>();
+        for (Task task : allTasks)
+        {
+            boolean matches = true;
+            for (String token : validTokens)
+            {
+                String lowerToken = token.toLowerCase();
+                boolean titleMatch = task.getTitle().toLowerCase().contains(lowerToken);
+                boolean descMatch = task.getDescription() != null && task.getDescription().toLowerCase().contains(lowerToken);
+
+                if (!titleMatch && !descMatch)
+                {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches)
+            {
+                filteredTasks.add(task);
+            }
+        }
+
+        // 按创建时间倒序排序
+        filteredTasks.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
+
+        // 分页
+        int totalCount = filteredTasks.size();
+        int fromIndex = Math.min(offset, totalCount);
+        int toIndex = Math.min(offset + limit, totalCount);
+        List<Task> paginatedTasks = fromIndex < toIndex ? filteredTasks.subList(fromIndex, toIndex) : new ArrayList<>();
+
+        logUtils.i(TAG, "searchTasks: Found " + paginatedTasks.size() + " of " + totalCount + " matching tasks");
+        return paginatedTasks;
+    }
+
+    /**
+     * 格式化日期时间为 ISO 8601 格式
+     */
+    private String formatDateTime(long timestamp)
+    {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return sdf.format(new java.util.Date(timestamp));
+    }
+
+    private Response handleIssues(IHTTPSession session, Method method)
+    {
+        switch (method)
+        {
+            case GET:
+                return getIssues(session);
+            case POST:
+                return createIssue(session);
+            default:
+                logUtils.w(TAG, "handleIssues: Method not allowed: " + method);
+                return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+        }
+    }
+
+    private Response handleIssueDetail(IHTTPSession session, Method method, String uri)
+    {
+        Matcher matcher = ISSUE_ID_PATTERN.matcher(uri);
+        if (!matcher.find())
+        {
+            logUtils.w(TAG, "handleIssueDetail: Invalid issue ID pattern: " + uri);
+            return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Invalid issue ID\"}");
+        }
+        long issueId = Long.parseLong(matcher.group(1));
+
+        switch (method)
+        {
+            case GET:
+                return getIssue(session, issueId);
+            case PUT:
+                return updateIssue(session, issueId);
+            case DELETE:
+                return deleteIssue(session, issueId);
+            default:
+                logUtils.w(TAG, "handleIssueDetail: Method not allowed: " + method);
+                return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+        }
+    }
+
+    private Response handleProjects(IHTTPSession session, Method method)
+    {
+        switch (method)
+        {
+            case GET:
+                return getProjects(session);
+            case POST:
+                return createProject(session);
+            default:
+                logUtils.w(TAG, "handleProjects: Method not allowed: " + method);
+                return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+        }
+    }
+
     private Response getIssue(IHTTPSession session, long issueId)
     {
         logUtils.d(TAG, "getIssue: Getting issue " + issueId);
@@ -109,9 +688,6 @@ public class JoyManApiService extends NanoHTTPD
 
         Map<String, String> params = session.getParms();
         String include = params.get("include");
-
-        // 🔍 [DEBUG] 第 1 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
 
         // 支持 children（子任务）
         if ("children".equals(include))
@@ -136,9 +712,6 @@ public class JoyManApiService extends NanoHTTPD
             {
                 comments = new ArrayList<>();
             }
-
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
 
             // 按 Redmine 格式返回 journals 数组
             JsonArray journalsArray = new JsonArray();
@@ -165,9 +738,6 @@ public class JoyManApiService extends NanoHTTPD
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
         }
-
-        // 🔍 [DEBUG] 第 3 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
 
         return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
     }
