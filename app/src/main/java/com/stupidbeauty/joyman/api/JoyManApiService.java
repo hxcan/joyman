@@ -714,6 +714,9 @@ public class JoyManApiService extends NanoHTTPD
             logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             {
                 comments = new ArrayList<>();
+
+            // 🔍 [DEBUG] 第 2 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             }
 
             // 按 Redmine 格式返回 journals 数组
