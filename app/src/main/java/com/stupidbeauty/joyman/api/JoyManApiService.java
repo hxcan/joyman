@@ -746,6 +746,9 @@ public class JoyManApiService extends NanoHTTPD
 
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
+
+        // 🔍 [DEBUG] 第 3 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
         }
 
         return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
