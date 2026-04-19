@@ -470,8 +470,8 @@ public class JoyManApiService extends NanoHTTPD
             logUtils.w(TAG, "handleSearch: Method not allowed: " + method);
             return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
         }
+
         Map<String, String> params = session.getParms();
-        String include = params.get("include");
 
         // 🔍 [DEBUG] 第 1 行日志
         logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
@@ -492,10 +492,12 @@ public class JoyManApiService extends NanoHTTPD
             return createCorsResponse(Response.Status.OK, "application/json", emptyResponse.toString());
         }
 
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
+        if (query == null || query.trim().isEmpty())
         {
             logUtils.w(TAG, "handleSearch: No query provided, returning all issues");
+
+            // 🔍 [DEBUG] 第 2 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             return getIssues(session);
         }
 
@@ -515,11 +517,12 @@ public class JoyManApiService extends NanoHTTPD
 
                 if (task.getProjectId() != null)
                 {
+                    Project project = projectRepository.getProjectById(task.getProjectId());
+                    if (project != null)
+                    {
+
         // 🔍 [DEBUG] 第 3 行日志
         logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
-
-        return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
-                    {
                         JsonObject projectObj = new JsonObject();
                         projectObj.addProperty("id", project.getId());
                         projectObj.addProperty("name", project.getName());
