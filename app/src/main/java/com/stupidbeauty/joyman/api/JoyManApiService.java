@@ -707,7 +707,6 @@ public class JoyManApiService extends NanoHTTPD
             List<Comment> comments = taskRepository.getTaskDao().getCommentsByIssueId(issueId);
             if (comments == null)
 
-
             // 🔍 [DEBUG] 第 2 行日志
             logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             {
@@ -733,10 +732,10 @@ public class JoyManApiService extends NanoHTTPD
                 // created_on 字段
                 journal.addProperty("created_on", formatDateTime(comment.getCreatedOn()));
 
-                journalsArray.add(journal);
 
         // 🔍 [DEBUG] 第 3 行日志
         logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
+                journalsArray.add(journal);
             }
 
             responseJson.add("journals", journalsArray);
