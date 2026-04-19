@@ -686,6 +686,9 @@ public class JoyManApiService extends NanoHTTPD
         // 🔍 [DEBUG] 第 1 行日志
         logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
 
+        // 🔍 [DEBUG] 第 1 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
+
         // 支持 children（子任务）
         if ("children".equals(include))
         {
