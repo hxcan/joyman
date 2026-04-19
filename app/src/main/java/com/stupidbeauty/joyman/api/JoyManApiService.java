@@ -472,9 +472,6 @@ public class JoyManApiService extends NanoHTTPD
         }
 
         Map<String, String> params = session.getParms();
-
-        // 🔍 [DEBUG] 第 1 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
         String query = params.get("q");
         String issuesFlag = params.get("issues");
         int offset = parseIntSafe(params.get("offset"), 0);
@@ -495,9 +492,6 @@ public class JoyManApiService extends NanoHTTPD
         if (query == null || query.trim().isEmpty())
         {
             logUtils.w(TAG, "handleSearch: No query provided, returning all issues");
-
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             return getIssues(session);
         }
 
@@ -520,9 +514,6 @@ public class JoyManApiService extends NanoHTTPD
                     Project project = projectRepository.getProjectById(task.getProjectId());
                     if (project != null)
                     {
-
-        // 🔍 [DEBUG] 第 3 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
                         JsonObject projectObj = new JsonObject();
                         projectObj.addProperty("id", project.getId());
                         projectObj.addProperty("name", project.getName());
@@ -692,6 +683,9 @@ public class JoyManApiService extends NanoHTTPD
         Map<String, String> params = session.getParms();
         String include = params.get("include");
 
+        // 🔍 [DEBUG] 第 1 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
+
         // 支持 children（子任务）
         if ("children".equals(include))
         {
@@ -712,6 +706,9 @@ public class JoyManApiService extends NanoHTTPD
             logUtils.d(TAG, "getIssue: include=journals requested, fetching comments");
             List<Comment> comments = taskRepository.getTaskDao().getCommentsByIssueId(issueId);
             if (comments == null)
+
+            // 🔍 [DEBUG] 第 2 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             {
                 comments = new ArrayList<>();
             }
@@ -736,6 +733,9 @@ public class JoyManApiService extends NanoHTTPD
                 journal.addProperty("created_on", formatDateTime(comment.getCreatedOn()));
 
                 journalsArray.add(journal);
+
+        // 🔍 [DEBUG] 第 3 行日志
+        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
             }
 
             responseJson.add("journals", journalsArray);
