@@ -743,4 +743,248 @@ public class JoyManApiService extends NanoHTTPD
         stop();
         logUtils.i(TAG, "stopService: JoyMan API server stopped");
     }
+
+    /**
+     * 清理 Chunked Transfer Encoding 的数据
+     */
+    private String cleanChunkedData(String data)
+    {
+        if (data == null || data.isEmpty())
+        {
+            return data;
+        }
+        logUtils.d(TAG, "cleanChunkedData: === START ===");
+        logUtils.d(TAG, "cleanChunkedData: Original data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Original data preview (first 300 chars): " + (data.length() > 300 ? data.substring(0, 300) + "..." : data));
+
+        String[] chunkedEndings = {
+            "\r\n0\r\n", "\r\n0\n", "\n0\r\n", "\n0\n", "\r\n0", "\n0"
+        };
+        String originalData = data;
+        for (String ending : chunkedEndings)
+        {
+            if (data.endsWith(ending))
+            {
+                logUtils.d(TAG, "cleanChunkedData: Removing chunked ending: " + escapeSpecialChars(ending));
+                data = data.substring(0, data.length() - ending.length());
+                break;
+            }
+        }
+
+        data = data.trim();
+
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data preview (first 300 chars): " + (data.length() > 300 ? data.substring(0, 300) + "..." : data));
+
+        if (!originalData.equals(data))
+        {
+            logUtils.d(TAG, "cleanChunkedData: Data was modified (length changed from " + originalData.length() + " to " + data.length() + ")");
+        }
+        else
+        {
+            logUtils.d(TAG, "cleanChunkedData: Data unchanged (no chunked markers found)");
+        }
+
+        logUtils.d(TAG, "cleanChunkedData: === END ===");
+        return data;
+    }
+
+    /**
+     * 转义特殊字符用于日志显示
+     */
+    private String escapeSpecialChars(String str)
+    {
+        return str.replace("\r", "\\r").replace("\n", "\\n");
+    }
+
+    /**
+     * 检测字符串是否为文件路径
+     */
+    private boolean isFilePath(String path)
+    {
+        if (path == null || path.isEmpty())
+        {
+            return false;
+        }
+        return (path.startsWith("/") || path.startsWith("C:") || path.startsWith("D:")) &&
+               (path.contains("/cache/") || path.contains("\\cache\\") ||
+                path.contains("/tmp/") || path.contains("\\tmp\\") ||
+                path.contains("NanoHTTPD"));
+    }
+
+    /**
+     * 从文件读取内容（Android 兼容方式，支持 API 24+）
+     */
+    private String readFileContent(String filePath)
+    {
+        try
+        {
+            logUtils.d(TAG, "readFileContent: Reading file: " + filePath);
+            File file = new File(filePath);
+            if (!file.exists())
+            {
+                logUtils.e(TAG, "readFileContent: File does not exist: " + filePath);
+                return null;
+            }
+
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            FileInputStream inputStream = null;
+            try
+            {
+                inputStream = new FileInputStream(file);
+                byte[] data = new byte[8192];
+                int nRead;
+                while ((nRead = inputStream.read(data, 0, data.length)) != -1)
+                {
+                    buffer.write(data, 0, nRead);
+                }
+                buffer.flush();
+                String content = buffer.toString(StandardCharsets.UTF_8.name());
+                logUtils.d(TAG, "readFileContent: File size: " + content.length() + " chars");
+                logUtils.d(TAG, "readFileContent: Content preview: " + (content.length() > 200 ? content.substring(0, 200) + "..." : content));
+                return content;
+            }
+            finally
+            {
+                if (inputStream != null)
+                {
+                    try
+                    {
+                        inputStream.close();
+                    }
+                    catch (IOException e)
+                    {
+                        logUtils.w(TAG, "readFileContent: Error closing stream: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            logUtils.e(TAG, "readFileContent: Error reading file: " + filePath, e);
+            return null;
+        }
+    }
+
+    /**
+     * 从输入流读取请求体（带详细调试日志）
+     */
+    private String readRequestBodyFromStream(IHTTPSession session)
+    {
+        logUtils.d(TAG, "readRequestBodyFromStream: === START ===");
+        try
+        {
+            Map<String, String> headers = session.getHeaders();
+            logUtils.d(TAG, "readRequestBodyFromStream: Headers count: " + (headers != null ? headers.size() : 0));
+            if (headers != null)
+            {
+                for (Map.Entry<String, String> entry : headers.entrySet())
+                {
+                    logUtils.d(TAG, "readRequestBodyFromStream: Header[" + entry.getKey() + "] = " + entry.getValue());
+                }
+            }
+
+            String contentLength = headers != null ? headers.get("content-length") : null;
+            logUtils.d(TAG, "readRequestBodyFromStream: Content-Length = " + contentLength);
+            logUtils.d(TAG, "readRequestBodyFromStream: Method = " + session.getMethod());
+            logUtils.d(TAG, "readRequestBodyFromStream: URI = " + session.getUri());
+            logUtils.d(TAG, "readRequestBodyFromStream: Trying to get input stream...");
+
+            if (contentLength != null && !contentLength.isEmpty())
+            {
+                int len = Integer.parseInt(contentLength);
+                logUtils.d(TAG, "readRequestBodyFromStream: Content-Length parsed as " + len + " bytes");
+                if (len > 0)
+                {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[len];
+                    int totalRead = 0;
+                    try
+                    {
+                        int nRead;
+                        while ((nRead = session.getInputStream().read(data, 0, len)) != -1)
+                        {
+                            buffer.write(data, 0, nRead);
+                            totalRead += nRead;
+                            logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                            if (totalRead >= len)
+                            {
+                                break;
+                            }
+                        }
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success) ===");
+                        return result;
+                    }
+                    catch (Exception e)
+                    {
+                        logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream", e);
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (error) ===");
+                        return null;
+                    }
+                }
+                else
+                {
+                    logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is 0, no data to read");
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (zero length) ===");
+                    return null;
+                }
+            }
+            else
+            {
+                logUtils.w(TAG, "readRequestBodyFromStream: Content-Length is null or empty, trying to read anyway...");
+                try
+                {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] data = new byte[1024];
+                    int nRead;
+                    int totalRead = 0;
+                    while ((nRead = session.getInputStream().read(data, 0, 1024)) != -1)
+                    {
+                        buffer.write(data, 0, nRead);
+                        totalRead += nRead;
+                        logUtils.d(TAG, "readRequestBodyFromStream: Read chunk of " + nRead + " bytes (total: " + totalRead + ")");
+                    }
+                    if (totalRead > 0)
+                    {
+                        String result = buffer.toString(StandardCharsets.UTF_8.name());
+                        logUtils.d(TAG, "readRequestBodyFromStream: Successfully read " + totalRead + " bytes (no Content-Length)");
+                        logUtils.d(TAG, "readRequestBodyFromStream: Data preview: " + (result.length() > 100 ? result.substring(0, 100) + "..." : result));
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (success, no CL) ===");
+                        return result;
+                    }
+                    else
+                    {
+                        logUtils.w(TAG, "readRequestBodyFromStream: No data read from stream");
+                        logUtils.d(TAG, "readRequestBodyFromStream: === END (no data) ===");
+                        return null;
+                    }
+                }
+                catch (Exception e)
+                {
+                    logUtils.e(TAG, "readRequestBodyFromStream: Error reading stream without Content-Length", e);
+                    logUtils.d(TAG, "readRequestBodyFromStream: === END (error, no CL) ===");
+                    return null;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            logUtils.e(TAG, "readRequestBodyFromStream: Unexpected error", e);
+            logUtils.d(TAG, "readRequestBodyFromStream: === END (unexpected error) ===");
+            return null;
+        }
+    }
+
+    /**
+     * 格式化日期时间为 ISO 8601 格式
+     */
+    private String formatDateTime(long timestamp)
+    {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return sdf.format(new java.util.Date(timestamp));
+    }
 }
