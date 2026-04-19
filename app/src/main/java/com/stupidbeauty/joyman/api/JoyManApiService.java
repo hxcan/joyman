@@ -686,9 +686,6 @@ public class JoyManApiService extends NanoHTTPD
         // 🔍 [DEBUG] 第 1 行日志
         logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
 
-        // 🔍 [DEBUG] 第 1 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
-
         // 支持 children（子任务）
         if ("children".equals(include))
         {
@@ -714,9 +711,6 @@ public class JoyManApiService extends NanoHTTPD
             logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             {
                 comments = new ArrayList<>();
-
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             }
 
             // 按 Redmine 格式返回 journals 数组
@@ -746,9 +740,6 @@ public class JoyManApiService extends NanoHTTPD
 
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
-
-        // 🔍 [DEBUG] 第 3 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
         }
 
         return createCorsResponse(Response.Status.OK, "application/json", responseJson.toString());
