@@ -686,11 +686,8 @@ public class JoyManApiService extends NanoHTTPD
         // 🔍 [DEBUG] 第 1 行日志
         logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
 
-        // 🔍 [DEBUG] 第 1 行日志
-        if (include != null && Arrays.asList(include.split(",")).contains("children"))
-
         // 支持 children（子任务）
-        if ("children".equals(include))
+        if (include != null && Arrays.asList(include.split(",")).contains("children"))
         {
             logUtils.d(TAG, "getIssue: include=children requested, fetching subtasks");
             List<Task> subtasks = taskRepository.getTaskDao().getSubtasksByParentId(issueId);
@@ -701,22 +698,19 @@ public class JoyManApiService extends NanoHTTPD
             JsonArray childrenArray = ApiJsonConverter.tasksToIssuesJson(subtasks, subtasks.size(), 0, subtasks.size()).getAsJsonArray("issues");
             responseJson.add("children", childrenArray);
             logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
-        if (include != null && Arrays.asList(include.split(",")).contains("journals"))
+        }
 
         // ✅ 新增：支持 journals（评论列表）
-        if ("journals".equals(include))
+        if (include != null && Arrays.asList(include.split(",")).contains("journals"))
         {
             logUtils.d(TAG, "getIssue: include=journals requested, fetching comments");
             List<Comment> comments = taskRepository.getTaskDao().getCommentsByIssueId(issueId);
-
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             if (comments == null)
             {
                 comments = new ArrayList<>();
 
-            // 🔍 [DEBUG] 第 2 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
+                // 🔍 [DEBUG] 第 2 行日志
+                logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
             }
 
             // 按 Redmine 格式返回 journals 数组
@@ -735,17 +729,14 @@ public class JoyManApiService extends NanoHTTPD
                 // notes 字段（评论内容）
                 journal.addProperty("notes", comment.getContent() != null ? comment.getContent() : "");
 
-            // 🔍 [DEBUG] 第 3 行日志
-            logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
-
                 // created_on 字段
                 journal.addProperty("created_on", formatDateTime(comment.getCreatedOn()));
 
                 journalsArray.add(journal);
             }
 
-        // 🔍 [DEBUG] 第 3 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
+            // 🔍 [DEBUG] 第 3 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
 
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
