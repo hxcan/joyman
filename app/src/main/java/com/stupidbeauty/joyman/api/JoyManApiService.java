@@ -705,12 +705,13 @@ public class JoyManApiService extends NanoHTTPD
         {
             logUtils.d(TAG, "getIssue: include=journals requested, fetching comments");
             List<Comment> comments = taskRepository.getTaskDao().getCommentsByIssueId(issueId);
+            if (comments == null)
             {
                 comments = new ArrayList<>();
-            }
 
             // 🔍 [DEBUG] 第 2 行日志
             logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
+            }
 
             // 按 Redmine 格式返回 journals 数组
             JsonArray journalsArray = new JsonArray();
@@ -731,11 +732,11 @@ public class JoyManApiService extends NanoHTTPD
                 // created_on 字段
                 journal.addProperty("created_on", formatDateTime(comment.getCreatedOn()));
 
+                journalsArray.add(journal);
+            }
 
         // 🔍 [DEBUG] 第 3 行日志
         logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
-                journalsArray.add(journal);
-            }
 
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
