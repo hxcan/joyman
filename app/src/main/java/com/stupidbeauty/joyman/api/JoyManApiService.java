@@ -687,7 +687,8 @@ public class JoyManApiService extends NanoHTTPD
         logUtils.i(TAG, "🔍 [DEBUG] include=" + include);
 
         // 支持 children（子任务）
-        if ("children".equals(include))
+        // 支持 children（子任务）
+        if (include != null && Arrays.asList(include.split(",")).contains("children"))
         {
             logUtils.d(TAG, "getIssue: include=children requested, fetching subtasks");
             List<Task> subtasks = taskRepository.getTaskDao().getSubtasksByParentId(issueId);
@@ -699,19 +700,18 @@ public class JoyManApiService extends NanoHTTPD
             responseJson.add("children", childrenArray);
             logUtils.i(TAG, "getIssue: Included " + subtasks.size() + " children");
         }
-
         // ✅ 新增：支持 journals（评论列表）
-        if ("journals".equals(include))
+        if (include != null && Arrays.asList(include.split(",")).contains("journals"))
         {
             logUtils.d(TAG, "getIssue: include=journals requested, fetching comments");
             List<Comment> comments = taskRepository.getTaskDao().getCommentsByIssueId(issueId);
             if (comments == null)
             {
                 comments = new ArrayList<>();
+            }
 
             // 🔍 [DEBUG] 第 2 行日志
             logUtils.i(TAG, "🔍 [DEBUG] comments count=" + comments.size());
-            }
 
             // 按 Redmine 格式返回 journals 数组
             JsonArray journalsArray = new JsonArray();
@@ -735,9 +735,12 @@ public class JoyManApiService extends NanoHTTPD
                 journalsArray.add(journal);
             }
 
-        // 🔍 [DEBUG] 第 3 行日志
-        logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
+            // 🔍 [DEBUG] 第 3 行日志
+            logUtils.i(TAG, "🔍 [DEBUG] has journals=" + responseJson.has("journals"));
 
+            responseJson.add("journals", journalsArray);
+            logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
+        }
             responseJson.add("journals", journalsArray);
             logUtils.i(TAG, "getIssue: Included " + comments.size() + " journals/comments");
         }
