@@ -1,9 +1,9 @@
 package com.stupidbeauty.joyman.util;
 
-import android.os.Environment;
 import android.content.Context;
-import android.provider.Settings;
 import android.net.Uri;
+import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 
 import java.io.File;
@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
  * 支持同时输出到 Logcat 和文件
  * 
  * @author 太极美术工程狮狮长
- * @version 1.1.0
+ * @version 1.2.0
  * @since 2026-04-01
  */
 public class LogUtils {
@@ -72,7 +72,11 @@ public class LogUtils {
         if (!currentHourKey.equals(lastHourKey)) {
             lastHourKey = currentHourKey;
             File logDir = getLogDirectory();
-            currentLogFile = new File(logDir, LOG_FILE_PREFIX + dateStr + "_" + hourStr + LOG_FILE_SUFFIX).getAbsolutePath();
+            if (logDir != null) {
+                currentLogFile = new File(logDir, LOG_FILE_PREFIX + dateStr + "_" + hourStr + LOG_FILE_SUFFIX).getAbsolutePath();
+            } else {
+                currentLogFile = null;
+            }
         }
     }
     
@@ -106,7 +110,6 @@ public class LogUtils {
         // Fallback: Use app's private external files directory (no permission needed)
         // Note: This requires a Context, which LogUtils doesn't have.
         // For now, we will return null and let writeToFile handle the error gracefully.
-        // In a real app, LogUtils should be initialized with a Context in Application.onCreate().
         Log.e(TAG, "❌ Cannot access any log directory. Please grant storage permissions in Settings.");
         return null;
     }
@@ -120,7 +123,6 @@ public class LogUtils {
             return true; // Assuming permission is granted via manifest/request
         }
     }
-    }
     
     /**
      * 写入日志到文件
@@ -129,6 +131,11 @@ public class LogUtils {
         executorService.execute(() -> {
             // 检查是否需要切换日志文件（跨小时情况）
             updateCurrentLogFile();
+            
+            if (currentLogFile == null) {
+                Log.e(TAG, "Cannot write to file: currentLogFile is null");
+                return;
+            }
             
             String timestamp = timeFormat.format(new Date());
             StringBuilder logBuilder = new StringBuilder();
@@ -209,7 +216,7 @@ public class LogUtils {
     }
     
     /**
-     * 获取当前日志文件路径
+     * ���取��前日志文件路径
      */
     public String getCurrentLogFile() {
         return currentLogFile;
@@ -219,6 +226,7 @@ public class LogUtils {
      * 获取日志目录路径
      */
     public String getLogDirectoryPath() {
-        return getLogDirectory().getAbsolutePath();
+        File dir = getLogDirectory();
+        return dir != null ? dir.getAbsolutePath() : "N/A";
     }
 }
