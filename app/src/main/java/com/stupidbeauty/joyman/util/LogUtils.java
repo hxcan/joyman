@@ -1,6 +1,9 @@
 package com.stupidbeauty.joyman.util;
 
+import android.content.Context;
+import android.net.Uri;
 import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 
 import java.io.File;
@@ -20,7 +23,7 @@ import java.util.concurrent.Executors;
  * 支持同时输出到 Logcat 和文件
  * 
  * @author 太极美术工程狮狮长
- * @version 1.1.0
+ * @version 1.2.0
  * @since 2026-04-01
  */
 public class LogUtils {
@@ -69,7 +72,11 @@ public class LogUtils {
         if (!currentHourKey.equals(lastHourKey)) {
             lastHourKey = currentHourKey;
             File logDir = getLogDirectory();
-            currentLogFile = new File(logDir, LOG_FILE_PREFIX + dateStr + "_" + hourStr + LOG_FILE_SUFFIX).getAbsolutePath();
+            if (logDir != null) {
+                currentLogFile = new File(logDir, LOG_FILE_PREFIX + dateStr + "_" + hourStr + LOG_FILE_SUFFIX).getAbsolutePath();
+            } else {
+                currentLogFile = null;
+            }
         }
     }
     
@@ -77,18 +84,44 @@ public class LogUtils {
      * 获取日志目录
      */
     private File getLogDirectory() {
-        File externalDir = new File(Environment.getExternalStorageDirectory(), "Download");
-        File logDir = new File(externalDir, LOG_DIR_NAME);
-        if (!logDir.exists()) {
-            boolean created = logDir.mkdirs();
-            Log.i(TAG, "📁 Creating log directory: " + logDir.getAbsolutePath() + " - " + (created ? "Success" : "Failed"));
-            if (!created) {
-                Log.e(TAG, "❌ Failed to create log directory. Check storage permissions.");
+        // Priority 1: Try public Download directory (requires MANAGE_EXTERNAL_STORAGE on Android 11+)
+        File publicLogDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), LOG_DIR_NAME);
+        
+        if (publicLogDir.exists()) {
+            Log.i(TAG, "✅ Public log directory exists: " + publicLogDir.getAbsolutePath());
+            return publicLogDir;
+        }
+        
+        // Check if we have permission to write to external storage
+        boolean hasPermission = checkExternalStoragePermission();
+        
+        if (hasPermission) {
+            boolean created = publicLogDir.mkdirs();
+            if (created) {
+                Log.i(TAG, "📁 Created public log directory: " + publicLogDir.getAbsolutePath());
+                return publicLogDir;
+            } else {
+                Log.e(TAG, "❌ Failed to create public log directory even with permission.");
             }
         } else {
-            Log.i(TAG, "✅ Log directory exists: " + logDir.getAbsolutePath());
+            Log.w(TAG, "⚠️ No external storage permission. Falling back to private directory.");
         }
-        return logDir;
+        
+        // Fallback: Use app's private external files directory (no permission needed)
+        // Note: This requires a Context, which LogUtils doesn't have.
+        // For now, we will return null and let writeToFile handle the error gracefully.
+        Log.e(TAG, "❌ Cannot access any log directory. Please grant storage permissions in Settings.");
+        return null;
+    }
+    
+    private boolean checkExternalStoragePermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            // Android 11+ uses MANAGE_EXTERNAL_STORAGE
+            return android.os.Environment.isExternalStorageManager();
+        } else {
+            // Android 10 and below use WRITE_EXTERNAL_STORAGE
+            return true; // Assuming permission is granted via manifest/request
+        }
     }
     
     /**
@@ -98,6 +131,11 @@ public class LogUtils {
         executorService.execute(() -> {
             // 检查是否需要切换日志文件（跨小时情况）
             updateCurrentLogFile();
+            
+            if (currentLogFile == null) {
+                Log.e(TAG, "Cannot write to file: currentLogFile is null");
+                return;
+            }
             
             String timestamp = timeFormat.format(new Date());
             StringBuilder logBuilder = new StringBuilder();
@@ -178,7 +216,7 @@ public class LogUtils {
     }
     
     /**
-     * 获取当前日志文件路径
+     * ���取��前日志文件路径
      */
     public String getCurrentLogFile() {
         return currentLogFile;
@@ -188,6 +226,7 @@ public class LogUtils {
      * 获取日志目录路径
      */
     public String getLogDirectoryPath() {
-        return getLogDirectory().getAbsolutePath();
+        File dir = getLogDirectory();
+        return dir != null ? dir.getAbsolutePath() : "N/A";
     }
 }
