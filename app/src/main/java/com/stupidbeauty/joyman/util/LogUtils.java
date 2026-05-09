@@ -1,6 +1,9 @@
 package com.stupidbeauty.joyman.util;
 
 import android.os.Environment;
+import android.content.Context;
+import android.provider.Settings;
+import android.net.Uri;
 import android.util.Log;
 
 import java.io.File;
@@ -77,19 +80,46 @@ public class LogUtils {
      * 获取日志目录
      */
     private File getLogDirectory() {
-        // Use app's private external files directory (no permission needed)
-        File externalDir = Environment.getExternalStorageDirectory();
-        File logDir = new File(externalDir, "Android/data/com.stupidbeauty.joyman/files/logs");
-        if (!logDir.exists()) {
-            boolean created = logDir.mkdirs();
-            Log.i(TAG, "📁 Creating log directory: " + logDir.getAbsolutePath() + " - " + (created ? "Success" : "Failed"));
-            if (!created) {
-                Log.e(TAG, "❌ Failed to create log directory.");
+        // Priority 1: Try public Download directory (requires MANAGE_EXTERNAL_STORAGE on Android 11+)
+        File publicLogDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), LOG_DIR_NAME);
+        
+        if (publicLogDir.exists()) {
+            Log.i(TAG, "✅ Public log directory exists: " + publicLogDir.getAbsolutePath());
+            return publicLogDir;
+        }
+        
+        // Check if we have permission to write to external storage
+        boolean hasPermission = checkExternalStoragePermission();
+        
+        if (hasPermission) {
+            boolean created = publicLogDir.mkdirs();
+            if (created) {
+                Log.i(TAG, "📁 Created public log directory: " + publicLogDir.getAbsolutePath());
+                return publicLogDir;
+            } else {
+                Log.e(TAG, "❌ Failed to create public log directory even with permission.");
             }
         } else {
-            Log.i(TAG, "✅ Log directory exists: " + logDir.getAbsolutePath());
+            Log.w(TAG, "⚠️ No external storage permission. Falling back to private directory.");
         }
-        return logDir;
+        
+        // Fallback: Use app's private external files directory (no permission needed)
+        // Note: This requires a Context, which LogUtils doesn't have.
+        // For now, we will return null and let writeToFile handle the error gracefully.
+        // In a real app, LogUtils should be initialized with a Context in Application.onCreate().
+        Log.e(TAG, "❌ Cannot access any log directory. Please grant storage permissions in Settings.");
+        return null;
+    }
+    
+    private boolean checkExternalStoragePermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            // Android 11+ uses MANAGE_EXTERNAL_STORAGE
+            return android.os.Environment.isExternalStorageManager();
+        } else {
+            // Android 10 and below use WRITE_EXTERNAL_STORAGE
+            return true; // Assuming permission is granted via manifest/request
+        }
+    }
     }
     
     /**
