@@ -141,7 +141,7 @@ public class ApiForegroundService extends Service {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "JoyMan API 服务",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             );
             channel.setDescription("REST API 服务运行状态通知");
             channel.setShowBadge(false);
@@ -175,12 +175,14 @@ public class ApiForegroundService extends Service {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("JoyMan API 服务")
             .setContentText("REST API 正在运行于端口 " + DEFAULT_PORT)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // 使用系统默认图标
+            .setSmallIcon(android.R.drawable.ic_menu_manage) // 使用系统默认图标
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOnlyAlertOnce(true);
         
         Notification notification = builder.build();
         logUtils.d(TAG, "createNotification: Notification created");
