@@ -77,13 +77,14 @@ public class LogUtils {
      * 获取日志目录
      */
     private File getLogDirectory() {
-        File externalDir = new File(Environment.getExternalStorageDirectory(), "Download");
-        File logDir = new File(externalDir, LOG_DIR_NAME);
+        // Use app's private external files directory (no permission needed)
+        File externalDir = Environment.getExternalStorageDirectory();
+        File logDir = new File(externalDir, "Android/data/com.stupidbeauty.joyman/files/logs");
         if (!logDir.exists()) {
             boolean created = logDir.mkdirs();
             Log.i(TAG, "📁 Creating log directory: " + logDir.getAbsolutePath() + " - " + (created ? "Success" : "Failed"));
             if (!created) {
-                Log.e(TAG, "❌ Failed to create log directory. Check storage permissions.");
+                Log.e(TAG, "❌ Failed to create log directory.");
             }
         } else {
             Log.i(TAG, "✅ Log directory exists: " + logDir.getAbsolutePath());
