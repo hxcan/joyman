@@ -77,10 +77,16 @@ public class LogUtils {
      * 获取日志目录
      */
     private File getLogDirectory() {
-        File externalDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File externalDir = new File(Environment.getExternalStorageDirectory(), "Download");
         File logDir = new File(externalDir, LOG_DIR_NAME);
         if (!logDir.exists()) {
-            logDir.mkdirs();
+            boolean created = logDir.mkdirs();
+            Log.i(TAG, "📁 Creating log directory: " + logDir.getAbsolutePath() + " - " + (created ? "Success" : "Failed"));
+            if (!created) {
+                Log.e(TAG, "❌ Failed to create log directory. Check storage permissions.");
+            }
+        } else {
+            Log.i(TAG, "✅ Log directory exists: " + logDir.getAbsolutePath());
         }
         return logDir;
     }
