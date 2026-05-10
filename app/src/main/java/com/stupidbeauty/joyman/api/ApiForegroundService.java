@@ -15,10 +15,8 @@ import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
 
 import com.stupidbeauty.joyman.MainActivity;
-import com.stupidbeauty.joyman.R;
 import com.stupidbeauty.joyman.util.LogUtils;
 
 /**
@@ -27,7 +25,8 @@ import com.stupidbeauty.joyman.util.LogUtils;
 public class ApiForegroundService extends Service {
     
     private static final String TAG = "ApiForegroundService";
-    private static final String CHANNEL_ID = "joyman_api_channel";
+    // 使用新的渠道 ID 绕过 Android 9 的渠道重要性缓存
+    private static final String CHANNEL_ID = "joyman_api_v2";
     private static final int NOTIFICATION_ID = 1001;
     private static final int DEFAULT_PORT = 8080;
     
@@ -38,10 +37,9 @@ public class ApiForegroundService extends Service {
     
     public static void start(Context context) {
         if (isRunning) {
-            logUtilsInfo(context, "⚠️ Service already running, skipping start");
+            logUtilsInfo(context, "⚠️ Service already running");
             return;
         }
-        
         logUtilsInfo(context, "🚀 Starting ApiForegroundService");
         Intent intent = new Intent(context, ApiForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -62,10 +60,10 @@ public class ApiForegroundService extends Service {
             if (logUtils != null) {
                 logUtils.i(TAG, message);
             } else {
-                android.util.Log.i(TAG, "LogUtils not initialized: " + message);
+                android.util.Log.i(TAG, message);
             }
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Error getting LogUtils instance", e);
+            android.util.Log.e(TAG, "Error getting LogUtils", e);
         }
     }
     
@@ -73,56 +71,48 @@ public class ApiForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         logUtils = LogUtils.getInstance();
-        logUtils.i(TAG, "✅ onCreate: API Foreground Service created on Android " + Build.VERSION.RELEASE);
+        logUtils.i(TAG, "✅ onCreate: API Foreground Service on Android " + Build.VERSION.RELEASE);
         
         if (!checkStoragePermission()) {
-            logUtils.w(TAG, "❌ Storage permission not granted, starting MainActivity");
+            logUtils.w(TAG, "❌ Storage permission not granted");
             Intent mainIntent = new Intent(this, MainActivity.class);
-            mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(mainIntent);
-        } else {
-            logUtils.d(TAG, "✅ Storage permission already granted");
         }
         
+        // 删除旧渠道并创建新渠道
+        deleteNotificationChannel();
         createNotificationChannel();
-        
-        // 检查通知渠道状态
         checkNotificationChannelStatus();
     }
     
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (isRunning) {
-            logUtils.w(TAG, "⚠️ Service already running, ignoring duplicate start");
+            logUtils.w(TAG, "⚠️ Service already running");
             return START_STICKY;
         }
         
         isRunning = true;
-        logUtils.i(TAG, "▶️ onStartCommand: Starting API foreground service");
+        logUtils.i(TAG, "▶️ Starting API foreground service");
         
-        // 显示 Toast 确认服务启动（作为通知的备用方案）
+        // Toast 备用通知
         Toast.makeText(this, "JoyMan API 服务已启动", Toast.LENGTH_LONG).show();
-        logUtils.i(TAG, "💬 Showing Toast notification as fallback");
+        logUtils.i(TAG, "💬 Showing Toast");
         
         Notification notification = createNotification();
         
-        logUtils.i(TAG, "🔔 Calling startForeground with notification ID " + NOTIFICATION_ID);
+        logUtils.i(TAG, "🔔 Calling startForeground");
         startForeground(NOTIFICATION_ID, notification);
         logUtils.i(TAG, "✅ startForeground() called - service is FOREGROUND");
-        logUtils.i(TAG, "👀 If notification is not visible, please check:");
-        logUtils.i(TAG, "   1. Settings → Apps → JoyMan → Notifications");
-        logUtils.i(TAG, "   2. Ensure 'JoyMan API 服务' channel is ENABLED");
-        logUtils.i(TAG, "   3. Check if notifications are hidden on lockscreen");
         
         try {
             apiService = new JoyManApiService(this, DEFAULT_PORT);
             apiService.startService();
-            logUtils.i(TAG, "🚀 JoyMan API server started on port " + DEFAULT_PORT);
+            logUtils.i(TAG, "🚀 API server started on port " + DEFAULT_PORT);
         } catch (Exception e) {
             if (e.getMessage() != null && e.getMessage().contains("EADDRINUSE")) {
                 logUtils.w(TAG, "⚠️ Port " + DEFAULT_PORT + " already in use");
-                logUtils.w(TAG, "💡 Continuing anyway - service remains in foreground");
             } else {
                 logUtils.e(TAG, "❌ Failed to start API server", e);
             }
@@ -133,14 +123,12 @@ public class ApiForegroundService extends Service {
     
     @Override
     public void onDestroy() {
-        logUtils.i(TAG, "⏹️ onDestroy: Stopping API foreground service");
+        logUtils.i(TAG, "⏹️ Stopping API foreground service");
         isRunning = false;
-        
         if (apiService != null) {
             apiService.stopService();
             apiService = null;
         }
-        
         super.onDestroy();
     }
     
@@ -150,37 +138,41 @@ public class ApiForegroundService extends Service {
     }
     
     /**
-     * 检查通知渠道状态
+     * 删除旧的通知渠道（解决 Android 9 渠道重要性缓存问题）
      */
+    private void deleteNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                // 删除新旧所有可能的渠道
+                manager.deleteNotificationChannel("joyman_api_channel");
+                manager.deleteNotificationChannel(CHANNEL_ID);
+                logUtils.d(TAG, "🗑️ Deleted old notification channels");
+            }
+        }
+    }
+    
     private void checkNotificationChannelStatus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
                 if (channel != null) {
-                    logUtils.i(TAG, "📊 Notification Channel Status:");
+                    logUtils.i(TAG, "📊 Channel Status:");
                     logUtils.i(TAG, "   - Name: " + channel.getName());
                     logUtils.i(TAG, "   - Importance: " + channel.getImportance() + 
-                        " (0=NONE, 1=MIN, 2=LOW, 3=DEFAULT, 4=HIGH)");
-                    logUtils.i(TAG, "   - Lockscreen Visibility: " + 
-                        (channel.getLockscreenVisibility() == Notification.VISIBILITY_PUBLIC ? "PUBLIC" : 
-                         channel.getLockscreenVisibility() == Notification.VISIBILITY_PRIVATE ? "PRIVATE" : "SECRET"));
+                        " (4=HIGH ✓, 3=DEFAULT, 2=LOW ✗)");
+                    logUtils.i(TAG, "   - Lockscreen Visibility: " + channel.getLockscreenVisibility());
                     logUtils.i(TAG, "   - Show Badge: " + channel.canShowBadge());
                     
-                    // 尝试直接发布测试通知
                     postTestNotification(manager);
                 } else {
                     logUtils.e(TAG, "❌ Notification channel is NULL!");
                 }
-            } else {
-                logUtils.e(TAG, "❌ NotificationManager is NULL!");
             }
         }
     }
     
-    /**
-     * 发布测试通知以验证渠道是否工作
-     */
     private void postTestNotification(NotificationManager manager) {
         try {
             NotificationCompat.Builder testBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -217,12 +209,13 @@ public class ApiForegroundService extends Service {
     
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            logUtils.d(TAG, "📺 Creating notification channel...");
+            logUtils.d(TAG, "📺 Creating notification channel (ID: " + CHANNEL_ID + ")...");
             
+            // 使用 IMPORTANCE_HIGH 确保通知显示
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "JoyMan API 服务",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_HIGH  // 4 = HIGH
             );
             channel.setDescription("REST API 服务运行状态通知 - 保持服务在前台运行");
             channel.setShowBadge(true);
@@ -234,12 +227,17 @@ public class ApiForegroundService extends Service {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
-                logUtils.i(TAG, "✅ Notification channel created with HIGH importance");
+                logUtils.i(TAG, "✅ Notification channel created with HIGH importance (4)");
                 
-                // 重新获取渠道确认设置生效
+                // 验证设置是否生效
                 NotificationChannel createdChannel = manager.getNotificationChannel(CHANNEL_ID);
                 if (createdChannel != null) {
-                    logUtils.i(TAG, "✅ Verified: Channel importance = " + createdChannel.getImportance());
+                    if (createdChannel.getImportance() == NotificationManager.IMPORTANCE_HIGH) {
+                        logUtils.i(TAG, "✅ SUCCESS: Channel importance correctly set to HIGH (4)");
+                    } else {
+                        logUtils.e(TAG, "❌ FAILED: Expected importance 4 but got " + createdChannel.getImportance());
+                        logUtils.e(TAG, "💡 This may be due to ROM-specific restrictions");
+                    }
                 }
             } else {
                 logUtils.e(TAG, "❌ NotificationManager is null!");
@@ -248,7 +246,7 @@ public class ApiForegroundService extends Service {
     }
     
     private Notification createNotification() {
-        logUtils.d(TAG, "🔨 Building notification with HIGH priority...");
+        logUtils.d(TAG, "🔨 Building notification...");
         
         Intent intent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
@@ -266,10 +264,10 @@ public class ApiForegroundService extends Service {
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
-            .setDefaults(Notification.DEFAULT_LIGHTS); // 添加默认灯光提醒
+            .setDefaults(Notification.DEFAULT_LIGHTS);
         
         Notification notification = builder.build();
-        logUtils.i(TAG, "✅ Notification built - should be visible!");
+        logUtils.i(TAG, "✅ Notification built");
         
         return notification;
     }
