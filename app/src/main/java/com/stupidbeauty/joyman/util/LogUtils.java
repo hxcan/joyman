@@ -80,7 +80,7 @@ public class LogUtils {
      * 获取日志目录
      */
     private File getLogDirectory() {
-        // Priority 1: Try public Download directory (requires MANAGE_EXTERNAL_STORAGE on Android 11+)
+        // Try public Download directory (requires MANAGE_EXTERNAL_STORAGE on Android 11+)
         File publicLogDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), LOG_DIR_NAME);
         
         if (publicLogDir.exists()) {
@@ -98,17 +98,13 @@ public class LogUtils {
                 return publicLogDir;
             } else {
                 Log.e(TAG, "❌ Failed to create public log directory even with permission.");
+                return null;
             }
         } else {
-            Log.w(TAG, "⚠️ No external storage permission. Falling back to private directory.");
+            Log.w(TAG, "⚠️ No external storage permission. Log file writing will be disabled until permission is granted.");
+            return null;
         }
-        
-        // Fallback: Use app's private external files directory (no permission needed)
-        // Note: This requires a Context, which LogUtils doesn't have.
-        // For now, we will return null and let writeToFile handle the error gracefully.
-        // In a real app, LogUtils should be initialized with a Context in Application.onCreate().
-        Log.e(TAG, "❌ Cannot access any log directory. Please grant storage permissions in Settings.");
-        return null;
+    }
     }
     
     private boolean checkExternalStoragePermission() {
