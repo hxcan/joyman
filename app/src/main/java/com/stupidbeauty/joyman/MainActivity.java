@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         instance = this;
         logUtils = LogUtils.getInstance();
         
-        logUtils.i(TAG, "onCreate: MainActivity created");
+        logUtils.i(TAG, "onCreate: MainActivity created on Android " + Build.VERSION.RELEASE);
         
         setContentView(R.layout.activity_main);
         setSupportActionBar(findViewById(R.id.toolbar));
@@ -96,11 +96,11 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         setupClickListeners();
         scheduleStartFtpServer();
         
+        // 检查并请求存储权限（所有 Android 版本）
+        checkAndRequestStoragePermission();
+        
         // 检查通知权限（Android 13+）
         checkNotificationPermission();
-        
-        // 检查存储权限（Android 11+）
-        checkAndRequestStoragePermission();
     }
     
     @Override
@@ -379,17 +379,15 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     }
     
     /**
-     * 检查通知权限（Android 13+）
-     */
-    /**
-     * 检查并请求存储权限（Android 11+）
-     * 注意：MANAGE_EXTERNAL_STORAGE 不能通过 requestPermissions 请求，
-     * 必须跳转到系统设置页面由用户手动授权。
+     * 检查并请求存储权限（兼容所有 Android 版本）
      */
     private void checkAndRequestStoragePermission() {
+        logUtils.d(TAG, "checkAndRequestStoragePermission: Called on Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE
             if (!android.os.Environment.isExternalStorageManager()) {
-                logUtils.w(TAG, "checkAndRequestStoragePermission: Permission not granted, showing dialog...");
+                logUtils.w(TAG, "❌ MANAGE_EXTERNAL_STORAGE not granted on Android " + Build.VERSION.RELEASE + ", showing dialog...");
                 
                 new AlertDialog.Builder(this)
                     .setTitle("需要文件管理权限")
@@ -400,7 +398,24 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                     .setNegativeButton("取消", null)
                     .show();
             } else {
-                logUtils.d(TAG, "checkAndRequestStoragePermission: Permission already granted");
+                logUtils.d(TAG, "✅ MANAGE_EXTERNAL_STORAGE already granted on Android " + Build.VERSION.RELEASE);
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10 使用分区存储，不需要特殊权限
+            logUtils.d(TAG, "✅ Android 10 uses scoped storage, no special permission needed");
+        } else {
+            // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE 运行时权限
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                logUtils.w(TAG, "❌ WRITE_EXTERNAL_STORAGE not granted on Android " + Build.VERSION.RELEASE + ", requesting...");
+                
+                ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    STORAGE_PERMISSION_REQUEST_CODE
+                );
+            } else {
+                logUtils.d(TAG, "✅ WRITE_EXTERNAL_STORAGE already granted on Android " + Build.VERSION.RELEASE);
             }
         }
     }
@@ -416,6 +431,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         }
     }
 
+    /**
+     * 检查通知权限（Android 13+）
+     */
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -440,7 +458,15 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
-        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+        if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                logUtils.i(TAG, "✅ onRequestPermissionsResult: WRITE_EXTERNAL_STORAGE permission granted on Android " + Build.VERSION.RELEASE);
+                Toast.makeText(this, "存储权限已授予，日志将写入到 /sdcard/Download/joyman_logs/", Toast.LENGTH_LONG).show();
+            } else {
+                logUtils.w(TAG, "❌ onRequestPermissionsResult: WRITE_EXTERNAL_STORAGE permission denied on Android " + Build.VERSION.RELEASE);
+                Toast.makeText(this, "存储权限被拒绝，日志将无法写入", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 logUtils.i(TAG, "onRequestPermissionsResult: Notification permission granted");
                 Toast.makeText(this, "通知权限已授予，API 服务将显示通知", Toast.LENGTH_SHORT).show();
