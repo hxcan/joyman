@@ -9,7 +9,6 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.Manifest;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -69,12 +68,13 @@ public class ApiForegroundService extends Service {
         
         // 检查存储权限并启动 MainActivity（所有 Android 版本）
         if (!checkStoragePermission()) {
-            logUtils.w(TAG, "Storage permission not granted, starting MainActivity to request permission");
+            logUtils.w(TAG, "❌ Storage permission not granted on Android " + Build.VERSION.RELEASE + ", starting MainActivity to request permission");
             Intent mainIntent = new Intent(this, MainActivity.class);
             mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(mainIntent);
         } else {
-            logUtils.d(TAG, "Storage permission already granted");
+            logUtils.d(TAG, "✅ Storage permission already granted on Android " + Build.VERSION.RELEASE);
         }
         
         // 创建通知渠道（必须在显示通知前创建）
@@ -145,7 +145,9 @@ public class ApiForegroundService extends Service {
             return true;
         } else {
             // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE
-            return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+            boolean hasPermission = checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+            logUtils.d(TAG, "checkStoragePermission on Android " + Build.VERSION.RELEASE + ": " + (hasPermission ? "granted" : "denied"));
+            return hasPermission;
         }
     }
 
