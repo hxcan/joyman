@@ -9,6 +9,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.Manifest;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -76,22 +77,6 @@ public class ApiForegroundService extends Service {
             logUtils.d(TAG, "Storage permission already granted");
         }
         
-        /**
-         * 检查存储权限（兼容所有 Android 版本）
-         */
-        private boolean checkStoragePermission() {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE
-                return android.os.Environment.isExternalStorageManager();
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10 使用分区存储，不需要特殊权限
-                return true;
-            } else {
-                // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE
-                return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-            }
-        }
-        
         // 创建通知渠道（必须在显示通知前创建）
         createNotificationChannel();
     }
@@ -148,6 +133,22 @@ public class ApiForegroundService extends Service {
      * 检查通知权限（Android 13+）
      * 注意：只检查权限，不请求权限。权限请求应该在 Activity 中进行。
      */
+    /**
+     * 检查存储权限（兼容所有 Android 版本）
+     */
+    private boolean checkStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE
+            return android.os.Environment.isExternalStorageManager();
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10 使用分区存储，不需要特殊权限
+            return true;
+        } else {
+            // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE
+            return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
     private boolean checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             boolean hasPermission = ActivityCompat.checkSelfPermission(
