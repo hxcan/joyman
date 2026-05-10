@@ -100,6 +100,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         checkNotificationPermission();
         
         // 检查存储权限（Android 11+）
+        Toast.makeText(this, "检查存储权限...", Toast.LENGTH_SHORT).show();
         checkAndRequestStoragePermission();
     }
     
