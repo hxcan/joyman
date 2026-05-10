@@ -2,6 +2,8 @@ package com.stupidbeauty.joyman;
 
 import android.Manifest;
 import android.content.Intent;
+import android.net.Uri;
+import android.provider.Settings;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -54,6 +56,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private static final String TAG = "MainActivity";
     private static final int FTP_SERVER_PORT = 2122;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 1001;
+    private static final int STORAGE_PERMISSION_REQUEST_CODE = 1002;
     
     private static MainActivity instance;
     
@@ -95,6 +98,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         
         // 检查通知权限（Android 13+）
         checkNotificationPermission();
+        
+        // 检查存储权限（Android 11+）
+        checkAndRequestStoragePermission();
     }
     
     @Override
@@ -375,6 +381,41 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     /**
      * 检查通知权限（Android 13+）
      */
+    /**
+     * 检查并请求存储权限（Android 11+）
+     * 注意：MANAGE_EXTERNAL_STORAGE 不能通过 requestPermissions 请求，
+     * 必须跳转到系统设置页面由用户手动授权。
+     */
+    private void checkAndRequestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                logUtils.w(TAG, "checkAndRequestStoragePermission: Permission not granted, showing dialog...");
+                
+                new AlertDialog.Builder(this)
+                    .setTitle("需要文件管理权限")
+                    .setMessage("JoyMan 需要「管理所有文件」权限才能将日志写入外部存储。\n\n请点击「确定」跳转到系统设置页面进行授权。")
+                    .setPositiveButton("确定", (dialog, which) -> {
+                        openStoragePermissionSettings();
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            } else {
+                logUtils.d(TAG, "checkAndRequestStoragePermission: Permission already granted");
+            }
+        }
+    }
+    
+    /**
+     * 打开系统设置页面，请求 MANAGE_EXTERNAL_STORAGE 权限
+     */
+    private void openStoragePermissionSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        }
+    }
+
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
