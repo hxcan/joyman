@@ -27,7 +27,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
  * 显示持久通知，告知用户 API 正在运行
  * 
  * @author 太极美术工程狮狮长
- * @version 1.0.3
+ * @version 1.0.4
  * @since 2026-04-06
  */
 public class ApiForegroundService extends Service {
@@ -37,6 +37,9 @@ public class ApiForegroundService extends Service {
     private static final int NOTIFICATION_ID = 1001;
     private static final int DEFAULT_PORT = 8080;
     
+    // 防止重复启动
+    private static boolean isRunning = false;
+    
     private JoyManApiService apiService;
     private LogUtils logUtils;
     
@@ -44,7 +47,12 @@ public class ApiForegroundService extends Service {
      * 启动服务的方法
      */
     public static void start(Context context) {
-        logUtilsInfo(context, "start: Starting ApiForegroundService");
+        if (isRunning) {
+            logUtilsInfo(context, "⚠️ Service already running, skipping start");
+            return;
+        }
+        
+        logUtilsInfo(context, "🚀 Starting ApiForegroundService");
         Intent intent = new Intent(context, ApiForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);
@@ -97,12 +105,19 @@ public class ApiForegroundService extends Service {
     
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // 防止重复启动
+        if (isRunning) {
+            logUtils.w(TAG, "⚠️ Service already running, ignoring duplicate start request");
+            return START_STICKY;
+        }
+        
+        isRunning = true;
         logUtils.i(TAG, "▶️ onStartCommand: Starting API foreground service on Android " + Build.VERSION.RELEASE);
         
         // 检查通知权限（Android 13+）
         // 注意：不在 Service 中请求权限，只在 MainActivity 中请求
         if (!checkNotificationPermission()) {
-            logUtils.w(TAG, "⚠️ onStartCommand: Notification permission not granted on Android " + Build.VERSION.RELEASE);
+            logUtils.w(TAG, "⚠️ Notification permission not granted on Android " + Build.VERSION.RELEASE);
             // 即使权限未授予，也尝试启动服务（旧版本不需要此权限）
         } else {
             logUtils.d(TAG, "✅ Notification permission OK on Android " + Build.VERSION.RELEASE);
@@ -115,7 +130,8 @@ public class ApiForegroundService extends Service {
         // 以前台服务方式启动
         logUtils.i(TAG, "🔔 Calling startForeground with notification ID " + NOTIFICATION_ID);
         startForeground(NOTIFICATION_ID, notification);
-        logUtils.i(TAG, "✅ startForeground() called successfully - service is now foreground");
+        logUtils.i(TAG, "✅ startForeground() called - service is now FOREGROUND");
+        logUtils.i(TAG, "👀 Notification should be visible in status bar now!");
         
         // 启动 API 服务
         try {
@@ -123,7 +139,12 @@ public class ApiForegroundService extends Service {
             apiService.startService();
             logUtils.i(TAG, "🚀 JoyMan API server started on port " + DEFAULT_PORT);
         } catch (Exception e) {
-            logUtils.e(TAG, "❌ Failed to start API server", e);
+            if (e.getMessage() != null && e.getMessage().contains("EADDRINUSE")) {
+                logUtils.w(TAG, "⚠️ Port " + DEFAULT_PORT + " already in use - another instance may be running");
+                logUtils.w(TAG, "💡 Continuing anyway - service will remain in foreground");
+            } else {
+                logUtils.e(TAG, "❌ Failed to start API server", e);
+            }
         }
         
         // 如果服务被杀死，自动重启
@@ -133,6 +154,8 @@ public class ApiForegroundService extends Service {
     @Override
     public void onDestroy() {
         logUtils.i(TAG, "⏹️ onDestroy: Stopping API foreground service");
+        
+        isRunning = false;
         
         // 停止 API 服务
         if (apiService != null) {
@@ -189,20 +212,22 @@ public class ApiForegroundService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             logUtils.d(TAG, "📺 Creating notification channel for Android " + Build.VERSION.RELEASE);
             
+            // 使用 IMPORTANCE_HIGH 确保通知显示
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "JoyMan API 服务",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             );
-            channel.setDescription("REST API 服务运行状态通知");
-            channel.setShowBadge(false);
+            channel.setDescription("REST API 服务运行状态通知 - 保持服务在前台运行");
+            channel.setShowBadge(true); // 显示角标
             channel.enableVibration(false);
             channel.setSound(null, null);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC); // 锁屏可见
             
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
-                logUtils.i(TAG, "✅ Notification channel created: " + CHANNEL_ID);
+                logUtils.i(TAG, "✅ Notification channel created with HIGH importance: " + CHANNEL_ID);
             } else {
                 logUtils.e(TAG, "❌ NotificationManager is null!");
             }
@@ -215,7 +240,7 @@ public class ApiForegroundService extends Service {
      * 创建前台服务通知
      */
     private Notification createNotification() {
-        logUtils.d(TAG, "🔨 Building notification...");
+        logUtils.d(TAG, "🔨 Building notification with HIGH priority...");
         
         // 点击通知打开主界面
         Intent intent = new Intent(this, MainActivity.class);
@@ -224,20 +249,20 @@ public class ApiForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         
-        // 构建通知 - 使用 PRIORITY_DEFAULT 确保通知显示
+        // 构建通知 - 使用 PRIORITY_HIGH 确保通知显示
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("JoyMan API 服务")
-            .setContentText("REST API 正在运行于端口 " + DEFAULT_PORT)
+            .setContentText("REST API 正在运行于端口 " + DEFAULT_PORT + " - 点击打开应用")
             .setSmallIcon(android.R.drawable.ic_menu_manage) // 使用系统默认图标
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT) // 改为 DEFAULT 优先级
+            .setOngoing(true) // 不可滑动删除
+            .setPriority(NotificationCompat.PRIORITY_HIGH) // 高优先级
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // 锁屏可见
             .setOnlyAlertOnce(true);
         
         Notification notification = builder.build();
-        logUtils.i(TAG, "✅ Notification built successfully");
+        logUtils.i(TAG, "✅ Notification built successfully - should be visible!");
         
         return notification;
     }
