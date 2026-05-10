@@ -105,6 +105,16 @@ public class LogUtils {
             return null;
         }
     }
+    
+    private boolean checkExternalStoragePermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            // Android 11+ uses MANAGE_EXTERNAL_STORAGE
+            return android.os.Environment.isExternalStorageManager();
+        } else {
+            // Android 10 and below use WRITE_EXTERNAL_STORAGE
+            return true; // Assuming permission is granted via manifest/request
+        }
+    }
     }
     
     private boolean checkExternalStoragePermission() {
