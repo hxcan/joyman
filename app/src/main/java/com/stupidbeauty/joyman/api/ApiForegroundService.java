@@ -8,13 +8,10 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
-import android.provider.Settings;
-import android.service.notification.StatusBarNotification;
+import android.os.IBinder;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -47,12 +44,8 @@ public class ApiForegroundService extends Service {
         }
         logUtilsInfo(context, "🚀 Starting ApiForegroundService");
         
-        // 检查通知是否被禁用
-        if (!isNotificationsEnabled(context)) {
-            logUtilsInfo(context, "❌ Notifications are DISABLED! Showing settings dialog...");
-            showNotificationSettingsDialog(context);
-            // 即使通知被禁用，也尝试启动服务（但用户可能看不到通知）
-        }
+        // 注意：不再在这里检查通知或显示对话框
+        // 对话框应该在 MainActivity 中显示
         
         Intent intent = new Intent(context, ApiForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -64,9 +57,9 @@ public class ApiForegroundService extends Service {
     
     /**
      * 检查应用的通知权限是否被用户或系统禁用
+     * 可以在任何 Context 中调用
      */
     public static boolean isNotificationsEnabled(Context context) {
-        // Android 7.0+ 可以使用 areNotificationsEnabled()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             NotificationManagerCompat manager = NotificationManagerCompat.from(context);
             boolean enabled = manager.areNotificationsEnabled();
@@ -84,72 +77,88 @@ public class ApiForegroundService extends Service {
             return enabled;
         }
         
-        // Android 6.0 及以下默认启用通知
         return true;
     }
     
     /**
-     * 显示通知设置对话框，引导用户到系统设置页面
+     * 在 MainActivity 中显示通知设置对话框
+     * 必须在 Activity 环境中调用
      */
-    public static void showNotificationSettingsDialog(Context context) {
+    public static void showNotificationSettingsDialog(MainActivity activity) {
         LogUtils logUtils = LogUtils.getInstance();
         if (logUtils != null) {
-            logUtils.w(TAG, "📢 Showing notification settings dialog...");
+            logUtils.w(TAG, "📢 Showing notification settings dialog in MainActivity...");
         }
         
-        new AlertDialog.Builder(context)
-            .setTitle("⚠️ 通知权限已关闭")
-            .setMessage(
-                "JoyMan 需要通知权限来保持 API 服务在前台运行。\n\n" +
-                "检测到您的设备已关闭 JoyMan 的通知权限，这会导致：\n" +
-                "• ❌ 无法看到 API 服务运行状态\n" +
-                "• ❌ 服务可能被系统自动杀死\n" +
-                "• ❌ 日志功能可能受影响\n\n" +
-                "请点击「去设置」手动开启通知权限：\n" +
-                "1. 点击「允许通知」开关\n" +
-                "2. 确保「JoyMan API 服务」渠道已启用\n" +
-                "3. 将重要性设置为「高」或「紧急」\n\n" +
-                "💡 提示：这是 Android 系统的安全机制，需要用户手动授权。"
-            )
-            .setPositiveButton("⚙️ 去设置", (dialog, which) -> {
-                // 打开应用通知设置页面
-                Intent intent = new Intent();
-                intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.getPackageName());
-                intent.putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
+        if (activity == null || activity.isFinishing()) {
+            if (logUtils != null) {
+                logUtils.e(TAG, "❌ Cannot show dialog: Activity is null or finishing");
+            }
+            return;
+        }
+        
+        try {
+            new androidx.appcompat.app.AlertDialog.Builder(activity)
+                .setTitle("⚠️ 通知权限已关闭")
+                .setMessage(
+                    "JoyMan 需要通知权限来保持 API 服务在前台运行。\n\n" +
+                    "检测到您的设备已关闭 JoyMan 的通知权限，这会导致：\n" +
+                    "• ❌ 无法看到 API 服务运行状态\n" +
+                    "• ❌ 服务可能被系统自动杀死\n" +
+                    "• ❌ 日志功能可能受影响\n\n" +
+                    "请点击「去设置」手动开启通知权限：\n" +
+                    "1. 点击「允许通知」开关\n" +
+                    "2. 确保「JoyMan API 服务」渠道已启用\n" +
+                    "3. 将重要性设置为「高」或「紧急」\n\n" +
+                    "💡 提示：这是 Android 系统的安全机制，需要用户手动授权。"
+                )
+                .setPositiveButton("⚙️ 去设置", (dialog, which) -> {
+                    Intent intent = new Intent();
+                    intent.setAction(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                    intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, activity.getPackageName());
+                    intent.putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, CHANNEL_ID);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    activity.startActivity(intent);
+                    
+                    if (logUtils != null) {
+                        logUtils.i(TAG, "✅ Opened notification settings page");
+                    }
+                })
+                .setNegativeButton("❌ 取消", (dialog, which) -> {
+                    if (logUtils != null) {
+                        logUtils.w(TAG, "⚠️ User declined to open notification settings");
+                    }
+                    Toast.makeText(activity, 
+                        "⚠️ 通知未开启，API 服务可能无法正常运行", 
+                        Toast.LENGTH_LONG).show();
+                })
+                .setNeutralButton("❓ 为什么需要通知？", (dialog, which) -> {
+                    new androidx.appcompat.app.AlertDialog.Builder(activity)
+                        .setTitle("为什么需要通知权限？")
+                        .setMessage(
+                            "Android 系统要求前台服务必须显示持久通知，这是为了：\n\n" +
+                            "✅ 透明度：让用户知道有服务在后台运行\n" +
+                            "✅ 可控性：用户可以随时通过通知管理或停止服务\n" +
+                            "✅ 电池优化：系统可以智能管理后台服务的电量消耗\n\n" +
+                            "JoyMan 的 API 服务需要持续运行以提供 REST API 接口，" +
+                            "因此必须显示通知来告知用户服务正在运行。\n\n" +
+                            "🔒 隐私说明：该通知不会收集或泄露任何个人信息。"
+                        )
+                        .setPositiveButton("明白了", null)
+                        .show();
+                })
+                .setCancelable(false)
+                .show();
                 
-                if (logUtils != null) {
-                    logUtils.i(TAG, "✅ Opened notification settings page");
-                }
-            })
-            .setNegativeButton("❌ 取消", (dialog, which) -> {
-                if (logUtils != null) {
-                    logUtils.w(TAG, "⚠️ User declined to open notification settings");
-                }
-                Toast.makeText(context, 
-                    "⚠️ 通知未开启，API 服务可能无法正常运行", 
-                    Toast.LENGTH_LONG).show();
-            })
-            .setNeutralButton("❓ 为什么需要通知？", (dialog, which) -> {
-                // 显示详细说明
-                new AlertDialog.Builder(context)
-                    .setTitle("为什么需要通知权限？")
-                    .setMessage(
-                        "Android 系统要求前台服务必须显示持久通知，这是为了：\n\n" +
-                        "✅ 透明度：让用户知道有服务在后台运行\n" +
-                        "✅ 可控性：用户可以随时通过通知管理或停止服务\n" +
-                        "✅ 电池优化：系统可以智能管理后台服务的电量消耗\n\n" +
-                        "JoyMan 的 API 服务需要持续运行以提供 REST API 接口，" +
-                        "因此必须显示通知来告知用户服务正在运行。\n\n" +
-                        "🔒 隐私说明：该通知不会收集或泄露任何个人信息。"
-                    )
-                    .setPositiveButton("明白了", null)
-                    .show();
-            })
-            .setCancelable(false)
-            .show();
+            if (logUtils != null) {
+                logUtils.i(TAG, "✅ Dialog shown successfully");
+            }
+        } catch (Exception e) {
+            if (logUtils != null) {
+                logUtils.e(TAG, "❌ Failed to show dialog", e);
+            }
+            Toast.makeText(activity, "⚠️ 请手动到设置中开启通知权限", Toast.LENGTH_LONG).show();
+        }
     }
     
     public static void stop(Context context) {
@@ -176,12 +185,6 @@ public class ApiForegroundService extends Service {
         logUtils = LogUtils.getInstance();
         logUtils.i(TAG, "✅ onCreate: API Foreground Service on Android " + Build.VERSION.RELEASE);
         
-        // 再次检查通知状态
-        if (!isNotificationsEnabled(this)) {
-            logUtils.e(TAG, "❌ Notifications still disabled in onCreate!");
-            Toast.makeText(this, "⚠️ 通知权限已关闭，请在设置中开启", Toast.LENGTH_LONG).show();
-        }
-        
         if (!checkStoragePermission()) {
             logUtils.w(TAG, "❌ Storage permission not granted");
             Intent mainIntent = new Intent(this, MainActivity.class);
@@ -204,11 +207,11 @@ public class ApiForegroundService extends Service {
         isRunning = true;
         logUtils.i(TAG, "▶️ Starting API foreground service");
         
-        // 最终检查：如果通知仍被禁用，显示 Toast 警告
+        // 检查但不显示对话框（对话框已在 MainActivity 中显示）
         if (!isNotificationsEnabled(this)) {
-            logUtils.e(TAG, "⚠️️⚠️ CRITICAL: Notifications are DISABLED! Service may be killed by system.");
+            logUtils.e(TAG, "⚠️️ CRITICAL: Notifications are DISABLED!");
             Toast.makeText(this, 
-                "⚠️ 通知权限未开启！\n请下拉通知栏查看设置提示，或到设置中手动开启", 
+                "⚠️ 通知权限未开启！请下拉到设置中手动开启", 
                 Toast.LENGTH_LONG).show();
         }
         
@@ -220,11 +223,6 @@ public class ApiForegroundService extends Service {
         logUtils.i(TAG, "🔔 Calling startForeground");
         startForeground(NOTIFICATION_ID, notification);
         logUtils.i(TAG, "✅ startForeground() called - service is FOREGROUND");
-        
-        // 如果通知被禁用，1 秒后再次提醒
-        if (!isNotificationsEnabled(this)) {
-            postDelayedNotificationReminder();
-        }
         
         try {
             apiService = new JoyManApiService(this, DEFAULT_PORT);
@@ -239,44 +237,6 @@ public class ApiForegroundService extends Service {
         }
         
         return START_STICKY;
-    }
-    
-    /**
-     * 延迟显示通知提醒
-     */
-    private void postDelayedNotificationReminder() {
-        new android.os.Handler(getMainLooper()).postDelayed(() -> {
-            if (!isNotificationsEnabled(ApiForegroundService.this)) {
-                logUtils.e(TAG, "⚠️ Reminder: Notifications still disabled!");
-                
-                // 尝试发送一个高优先级的测试通知（可能会被系统阻止，但值得一试）
-                try {
-                    NotificationManager manager = getSystemService(NotificationManager.class);
-                    if (manager != null) {
-                        NotificationCompat.Builder reminderBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                            .setContentTitle("⚠️ 请开启通知权限")
-                            .setContentText("点击此处进入设置页面开启 JoyMan 的通知权限")
-                            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                            .setPriority(NotificationCompat.PRIORITY_MAX)
-                            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                            .setAutoCancel(true)
-                            .setContentIntent(PendingIntent.getActivity(
-                                this, 0,
-                                new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                    .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                            ));
-                        
-                        manager.notify(8888, reminderBuilder.build());
-                        logUtils.i(TAG, "📢 Sent reminder notification (ID: 8888)");
-                    }
-                } catch (Exception e) {
-                    logUtils.e(TAG, "❌ Failed to send reminder notification", e);
-                }
-            }
-        }, 1000); // 1 秒后检查
     }
     
     @Override
@@ -319,9 +279,8 @@ public class ApiForegroundService extends Service {
                     logUtils.i(TAG, "   - Lockscreen Visibility: " + channel.getLockscreenVisibility());
                     logUtils.i(TAG, "   - Show Badge: " + channel.canShowBadge());
                     
-                    // 检查渠道本身是否被用户禁用
                     if (channel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
-                        logUtils.e(TAG, "❌ CRITICAL: Channel importance is NONE! User may have disabled this channel.");
+                        logUtils.e(TAG, "❌ CRITICAL: Channel importance is NONE!");
                     }
                     
                     postTestNotification(manager);
@@ -393,7 +352,6 @@ public class ApiForegroundService extends Service {
                         logUtils.i(TAG, "✅ SUCCESS: Channel importance correctly set to HIGH (4)");
                     } else {
                         logUtils.e(TAG, "❌ FAILED: Expected importance 4 but got " + createdChannel.getImportance());
-                        logUtils.e(TAG, "💡 This may be due to ROM-specific restrictions");
                     }
                 }
             } else {
