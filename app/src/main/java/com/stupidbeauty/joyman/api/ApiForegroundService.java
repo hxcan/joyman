@@ -66,15 +66,29 @@ public class ApiForegroundService extends Service {
         logUtils = LogUtils.getInstance();
         logUtils.i(TAG, "onCreate: API Foreground Service created");
         
-        // 检查存储权限并启动 MainActivity
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!android.os.Environment.isExternalStorageManager()) {
-                logUtils.w(TAG, "Storage permission not granted, starting MainActivity to request permission");
-                Intent mainIntent = new Intent(this, MainActivity.class);
-                mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(mainIntent);
+        // 检查存储权限并启动 MainActivity（所有 Android 版本）
+        if (!checkStoragePermission()) {
+            logUtils.w(TAG, "Storage permission not granted, starting MainActivity to request permission");
+            Intent mainIntent = new Intent(this, MainActivity.class);
+            mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(mainIntent);
+        } else {
+            logUtils.d(TAG, "Storage permission already granted");
+        }
+        
+        /**
+         * 检查存储权限（兼容所有 Android 版本）
+         */
+        private boolean checkStoragePermission() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE
+                return android.os.Environment.isExternalStorageManager();
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10 使用分区存储，不需要特殊权限
+                return true;
             } else {
-                logUtils.d(TAG, "Storage permission already granted");
+                // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE
+                return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
             }
         }
         
