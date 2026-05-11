@@ -7,6 +7,7 @@ import android.provider.Settings;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -29,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.stupidbeauty.builtinftp.BuiltinFtpServer;
+import com.stupidbeauty.joyman.api.ApiForegroundService;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.listener.BuiltinFtpServerErrorListener;
@@ -43,13 +45,8 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-
 /**
  * JoyMan 主界面 - 任务列表展示
- * 
- * @author 太极美术工程狮狮长
- * @version 3.1.0
- * @since 2026-04-01
  */
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener, ProjectAdapter.OnProjectClickListener {
     
@@ -101,6 +98,29 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         
         // 检查通知权限（Android 13+）
         checkNotificationPermission();
+        
+        // 延迟检查应用级通知是否被禁用（500ms 后）
+        new Handler(getMainLooper()).postDelayed(() -> {
+            checkAppNotificationsEnabled();
+        }, 500);
+    }
+    
+    /**
+     * 检查应用的通知权限是否被禁用
+     */
+    private void checkAppNotificationsEnabled() {
+        if (isFinishing()) {
+            return;
+        }
+        
+        boolean enabled = ApiForegroundService.isNotificationsEnabled(this);
+        
+        if (!enabled) {
+            logUtils.e(TAG, "❌ App notifications are DISABLED! Showing dialog...");
+            ApiForegroundService.showNotificationSettingsDialog(this);
+        } else {
+            logUtils.d(TAG, "✅ App notifications are enabled");
+        }
     }
     
     @Override
@@ -111,9 +131,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         }
     }
     
-    /**
-     * 获取 MainActivity 实例（用于 Service 请求权限）
-     */
     public static MainActivity getInstance() {
         return instance;
     }
@@ -177,10 +194,8 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             projectSpinnerAdapter.notifyDataSetChanged();
         });
         
-        // 观察所有任务
         taskViewModel.getAllTasks().observe(this, tasks -> {
             if (tasks != null && selectedProject == null && !isSearching) {
-                // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
                     .collect(java.util.stream.Collectors.toList());
@@ -202,7 +217,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 50, 50, 50);
         
-        // 任务标题输入框
         EditText editTextTitle = new EditText(this);
         editTextTitle.setHint(R.string.new_task_hint);
         editTextTitle.setLayoutParams(new LinearLayout.LayoutParams(
@@ -210,7 +224,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             LinearLayout.LayoutParams.WRAP_CONTENT));
         layout.addView(editTextTitle);
         
-        // 任务描述输入框
         EditText editTextDescription = new EditText(this);
         editTextDescription.setHint("任务描述（可选）");
         editTextDescription.setLayoutParams(new LinearLayout.LayoutParams(
@@ -222,7 +235,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         editTextDescription.setGravity(android.view.Gravity.TOP);
         layout.addView(editTextDescription);
         
-        // 项目选择器
         Spinner spinnerProject = new Spinner(this);
         spinnerProject.setLayoutParams(new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -268,7 +280,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                         projectId = projectIds.get(selectedPosition);
                     }
                     
-                    // 创建任务（支持描述）
                     long taskId = taskViewModel.createTask(title, description);
                     
                     if (projectId != null) {
@@ -335,7 +346,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private void loadAllTasks() {
         taskViewModel.getAllTasks().observe(this, tasks -> {
             if (tasks != null) {
-                // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
                     .collect(java.util.stream.Collectors.toList());
@@ -348,7 +358,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private void loadTasksByProject(long projectId) {
         taskViewModel.getTasksByProject(projectId).observe(this, tasks -> {
             if (tasks != null) {
-                // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
                     .collect(java.util.stream.Collectors.toList());
@@ -378,16 +387,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         android.util.Log.d(TAG, "FTP server started on port " + FTP_SERVER_PORT);
     }
     
-    /**
-     * 检查并请求存储权限（兼容所有 Android 版本）
-     */
     private void checkAndRequestStoragePermission() {
         logUtils.d(TAG, "checkAndRequestStoragePermission: Called on Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE
             if (!android.os.Environment.isExternalStorageManager()) {
-                logUtils.w(TAG, "❌ MANAGE_EXTERNAL_STORAGE not granted on Android " + Build.VERSION.RELEASE + ", showing dialog...");
+                logUtils.w(TAG, "❌ MANAGE_EXTERNAL_STORAGE not granted, showing dialog...");
                 
                 new AlertDialog.Builder(this)
                     .setTitle("需要文件管理权限")
@@ -398,16 +403,14 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                     .setNegativeButton("取消", null)
                     .show();
             } else {
-                logUtils.d(TAG, "✅ MANAGE_EXTERNAL_STORAGE already granted on Android " + Build.VERSION.RELEASE);
+                logUtils.d(TAG, "✅ MANAGE_EXTERNAL_STORAGE already granted");
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10 使用分区存储，不需要特殊权限
             logUtils.d(TAG, "✅ Android 10 uses scoped storage, no special permission needed");
         } else {
-            // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE 运行时权限
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
-                logUtils.w(TAG, "❌ WRITE_EXTERNAL_STORAGE not granted on Android " + Build.VERSION.RELEASE + ", requesting...");
+                logUtils.w(TAG, "❌ WRITE_EXTERNAL_STORAGE not granted, requesting...");
                 
                 ActivityCompat.requestPermissions(
                     this,
@@ -415,14 +418,11 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                     STORAGE_PERMISSION_REQUEST_CODE
                 );
             } else {
-                logUtils.d(TAG, "✅ WRITE_EXTERNAL_STORAGE already granted on Android " + Build.VERSION.RELEASE);
+                logUtils.d(TAG, "✅ WRITE_EXTERNAL_STORAGE already granted");
             }
         }
     }
     
-    /**
-     * 打开系统设置页面，请求 MANAGE_EXTERNAL_STORAGE 权限
-     */
     private void openStoragePermissionSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
@@ -431,9 +431,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         }
     }
 
-    /**
-     * 检查通知权限（Android 13+）
-     */
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -450,9 +447,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         }
     }
     
-    /**
-     * 处理权限请求结果
-     */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
@@ -460,18 +454,18 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         
         if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                logUtils.i(TAG, "✅ onRequestPermissionsResult: WRITE_EXTERNAL_STORAGE permission granted on Android " + Build.VERSION.RELEASE);
+                logUtils.i(TAG, "✅ WRITE_EXTERNAL_STORAGE permission granted");
                 Toast.makeText(this, "存储权限已授予，日志将写入到 /sdcard/Download/joyman_logs/", Toast.LENGTH_LONG).show();
             } else {
-                logUtils.w(TAG, "❌ onRequestPermissionsResult: WRITE_EXTERNAL_STORAGE permission denied on Android " + Build.VERSION.RELEASE);
+                logUtils.w(TAG, "❌ WRITE_EXTERNAL_STORAGE permission denied");
                 Toast.makeText(this, "存储权限被拒绝，日志将无法写入", Toast.LENGTH_LONG).show();
             }
         } else if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                logUtils.i(TAG, "onRequestPermissionsResult: Notification permission granted");
+                logUtils.i(TAG, "Notification permission granted");
                 Toast.makeText(this, "通知权限已授予，API 服务将显示通知", Toast.LENGTH_SHORT).show();
             } else {
-                logUtils.w(TAG, "onRequestPermissionsResult: Notification permission denied");
+                logUtils.w(TAG, "Notification permission denied");
                 Toast.makeText(this, "通知权限被拒绝，API 服务可能无法正常显示通知", Toast.LENGTH_LONG).show();
             }
         }
@@ -481,18 +475,15 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         
-        // 初始化搜索框
         MenuItem searchItem = menu.findItem(R.id.action_search);
         searchView = (SearchView) searchItem.getActionView();
         
         if (searchView != null) {
             searchView.setQueryHint("搜索任务（支持多关键词）");
             
-            // 设置搜索监听器
             searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
                 @Override
                 public boolean onQueryTextSubmit(String query) {
-                    // 提交搜索
                     performSearch(query);
                     searchView.clearFocus();
                     return true;
@@ -500,18 +491,15 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                 
                 @Override
                 public boolean onQueryTextChange(String newText) {
-                    // 实时搜索（可选，如果不需要实时搜索可以返回 false）
                     if (newText.isEmpty()) {
                         clearSearch();
                     } else if (newText.length() >= 2) {
-                        // 至少 2 个字符才开始搜索
                         performSearch(newText);
                     }
                     return true;
                 }
             });
             
-            // 设置关闭监听器
             searchView.setOnCloseListener(() -> {
                 clearSearch();
                 return false;
@@ -521,9 +509,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         return true;
     }
     
-    /**
-     * 执行搜索
-     */
     private void performSearch(String keywords) {
         if (keywords == null || keywords.trim().isEmpty()) {
             clearSearch();
@@ -533,10 +518,8 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         isSearching = true;
         logUtils.d(TAG, "performSearch: Searching with keywords: " + keywords);
         
-        // 调用 ViewModel 进行搜索
         taskViewModel.searchTasksByKeywords(keywords).observe(this, tasks -> {
             if (tasks != null) {
-                // 过滤掉已关闭的任务
                 List<Task> filteredTasks = tasks.stream()
                     .filter(task -> task.getStatus() != Task.STATUS_CLOSED)
                     .collect(java.util.stream.Collectors.toList());
@@ -552,9 +535,6 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         });
     }
     
-    /**
-     * 清除搜索，恢复完整列表
-     */
     private void clearSearch() {
         isSearching = false;
         logUtils.d(TAG, "clearSearch: Clearing search and restoring full list");
