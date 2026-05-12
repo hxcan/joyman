@@ -118,7 +118,7 @@ public class BatteryOptimizationHelper {
                 }
             }
         } catch (Exception e) {
-            logUtils.w(TAG, "Failed to get Nubia battery optimization status", e);
+            logUtils.w(TAG, "Failed to get Nubia battery optimization status: " + e.getMessage());
         }
         
         // 无法检测时返回 0（未知）
