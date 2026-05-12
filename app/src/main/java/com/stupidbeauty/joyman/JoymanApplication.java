@@ -55,22 +55,37 @@ public class JoymanApplication extends Application {
                     logUtils.i(TAG, "🔧 Development mode: Auto-enabled REST API");
                 }
                 
-                // Check battery optimization status
-                if (!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)) {
-                    logUtils.w(TAG, "⚠️ Battery optimization is enabled, requesting ignore...");
+                // Check battery optimization status (including Nubia dual-layer detection)
+                boolean isIgnoring = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this);
+                logUtils.d(TAG, "Battery optimization check result: " + isIgnoring);
+                
+                if (!isIgnoring) {
+                    logUtils.w(TAG, "⚠️ Battery optimization is enabled (one or both layers), showing guide...");
                     
                     // Show detailed toast to inform user
-                    Toast.makeText(this, 
-                        "🔋 检测到电池优化已开启\n\n" +
-                        "请在设置页面找到：\n" +
-                        "1. \"省电策略\" 或 \"电池\"\n" +
-                        "2. 设置为\"无限制\"\n" +
-                        "3. 开启\"允许后台活动\"\n\n" +
-                        "否则 API 服务在后台会被限制", 
-                        Toast.LENGTH_LONG).show();
+                    StringBuilder toastMessage = new StringBuilder();
+                    toastMessage.append("🔋 检测到电池优化已开启\n\n");
+                    
+                    if (BatteryOptimizationHelper.isNubiaRom()) {
+                        toastMessage.append("⚠️ 努比亚手机特别说明：\n");
+                        toastMessage.append("需要同时关闭两层电池管理：\n");
+                        toastMessage.append("1. Android 标准优化\n");
+                        toastMessage.append("2. 努比亚省电方案（不管控）\n\n");
+                        toastMessage.append("请点击设置页面手动配置。");
+                    } else {
+                        toastMessage.append("请在设置页面找到：\n");
+                        toastMessage.append("1. \"省电策略\" 或 \"电池\"\n");
+                        toastMessage.append("2. 设置为\"无限制\"\n");
+                        toastMessage.append("3. 开启\"允许后台活动\"\n\n");
+                        toastMessage.append("否则 API 服务在后台会被限制");
+                    }
+                    
+                    Toast.makeText(this, toastMessage.toString(), Toast.LENGTH_LONG).show();
                     
                     // Auto-open settings to guide user
                     BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this);
+                } else {
+                    logUtils.i(TAG, "✅ Battery optimization already ignored (both layers)");
                 }
                 
                 // Start foreground service for API
