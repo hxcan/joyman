@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
+
 /**
  * JoyMan 主界面 - 任务列表展示
  */
@@ -54,6 +55,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private static final int FTP_SERVER_PORT = 2122;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 1001;
     private static final int STORAGE_PERMISSION_REQUEST_CODE = 1002;
+    private static final int BATTERY_OPTIMIZATION_REQUEST_CODE = 1003;
     
     private static MainActivity instance;
     
@@ -102,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         // 延迟检查应用级通知是否被禁用（500ms 后）
         new Handler(getMainLooper()).postDelayed(() -> {
             checkAppNotificationsEnabled();
+            checkBatteryOptimization();
         }, 500);
     }
     
@@ -120,6 +123,73 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             ApiForegroundService.showNotificationSettingsDialog(this);
         } else {
             logUtils.d(TAG, "✅ App notifications are enabled");
+        }
+    }
+    
+    /**
+     * 检查电池优化状态并引导用户配置
+     * 仅在 Android 6.0+ 上有效
+     */
+    private void checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return; // Android 6.0 以下没有电池优化机制
+        }
+        
+        if (isFinishing()) {
+            return;
+        }
+        
+        android.os.PowerManager powerManager = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        if (powerManager == null) {
+            return;
+        }
+        
+        boolean isIgnoringBatteryOptimizations = powerManager.isIgnoringBatteryOptimizations(getPackageName());
+        
+        if (!isIgnoringBatteryOptimizations) {
+            logUtils.w(TAG, "⚠️ Battery optimization is enabled for JoyMan. Showing guide dialog...");
+            showBatteryOptimizationGuideDialog();
+        } else {
+            logUtils.d(TAG, "✅ Battery optimization is already ignored");
+        }
+    }
+    
+    /**
+     * 显示电池优化引导对话框
+     */
+    private void showBatteryOptimizationGuideDialog() {
+        if (isFinishing()) {
+            return;
+        }
+        
+        try {
+            new AlertDialog.Builder(this)
+                .setTitle("⚠️ 电池优化限制检测")
+                .setMessage(
+                    "检测到系统对 JoyMan 启用了电池优化，这可能导致后台网络访问被限制。\n\n" +
+                    "请点击「去设置」，然后将电池策略设置为「不管控」或「无限制」，\n" +
+                    "以确保 API 服务能够持续运行。\n\n" +
+                    "💡 提示：这是国产 ROM（如努比亚、小米、华为等）的常见设置。"
+                )
+                .setPositiveButton("⚙️ 去设置", (dialog, which) -> {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                    
+                    logUtils.i(TAG, "✅ Opened battery optimization settings");
+                })
+                .setNegativeButton("❌ 稍后提醒", (dialog, which) -> {
+                    dialog.dismiss();
+                    logUtils.w(TAG, "⚠️ User declined to configure battery optimization");
+                })
+                .setCancelable(false)
+                .show();
+                
+            logUtils.i(TAG, "✅ Battery optimization guide dialog shown");
+        } catch (Exception e) {
+            logUtils.e(TAG, "❌ Failed to show battery optimization dialog", e);
+            Toast.makeText(this, "⚠️ 请手动到设置中关闭 JoyMan 的电池优化", Toast.LENGTH_LONG).show();
         }
     }
     
