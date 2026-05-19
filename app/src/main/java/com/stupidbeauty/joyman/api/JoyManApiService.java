@@ -452,6 +452,13 @@ public class JoyManApiService extends NanoHTTPD
             {
                 return handleIssueDetail(session, method, uri);
             }
+            else if (uri.equals("projects.json"))
+            {
+                return handleProjects(session, method);
+            }
+            else if (uri.startsWith("projects/") && uri.endsWith(".json"))
+            {
+                logUtils.w(TAG, "Unknown endpoint: " + uri);
                 String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
                 return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
             }
@@ -1295,18 +1302,6 @@ public class JoyManApiService extends NanoHTTPD
         return response;
     }
 
-    public void startService()
-    {
-        try
-        {
-            start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-            logUtils.i(TAG, "startService: JoyMan API server started successfully");
-            logUtils.i(TAG, "Authentication: HTTP Basic Auth (username:password)");
-            logUtils.i(TAG, "Default credentials: " + adminUsername + " / " + adminPassword);
-        }
-        catch (IOException e)
-        {
-
     /**
      * 处理 GET /issues/{id}/relations.json 请求 - 获取关系列表
      */
@@ -1496,6 +1491,18 @@ public class JoyManApiService extends NanoHTTPD
             return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Failed to create relation: " + e.getMessage() + "\"}");
         }
     }
+
+    public void startService()
+    {
+        try
+        {
+            start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            logUtils.i(TAG, "startService: JoyMan API server started successfully");
+            logUtils.i(TAG, "Authentication: HTTP Basic Auth (username:password)");
+            logUtils.i(TAG, "Default credentials: " + adminUsername + " / " + adminPassword);
+        }
+        catch (IOException e)
+        {
             logUtils.e(TAG, "startService: Failed to start API server", e);
         }
     }
