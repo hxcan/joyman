@@ -452,6 +452,7 @@ public class JoyManApiService extends NanoHTTPD
             {
                 return handleIssueDetail(session, method, uri);
             }
+                String responseBody = "{\"error\":\"Unknown endpoint: " + uri + "\",\"available_endpoints\":" + buildAvailableEndpointsJson() + "}";
                 return createCorsResponse(Response.Status.NOT_FOUND, "application/json", responseBody);
             }
             else
