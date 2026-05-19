@@ -1,117 +1,114 @@
     /**
-     * 处理 /issues/{id}/relations.json 请求
+     * 处理 POST /issues/{id}/relations.json 请求 - 创建新关系
      */
-    private Response handleIssueRelations(IHTTPSession session, Method method, String uri)
+    private Response createRelation(IHTTPSession session, String uri) throws IOException, org.json.JSONException
     {
-        if (!Method.GET.equals(method))
-        {
-            logUtils.w(TAG, "handleIssueRelations: Method not allowed: " + method);
-            return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
-        }
-
         // 解析任务 ID
         Matcher matcher = ISSUE_RELATIONS_PATTERN.matcher(uri);
         if (!matcher.matches())
         {
-            logUtils.w(TAG, "handleIssueRelations: Invalid URI pattern: " + uri);
+            logUtils.w(TAG, "createRelation: Invalid URI pattern: " + uri);
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid URI format\"}");
         }
 
         long issueId = Long.parseLong(matcher.group(1));
-        logUtils.d(TAG, "handleIssueRelations: Getting relations for issue " + issueId);
+        logUtils.d(TAG, "createRelation: Creating relation for issue " + issueId);
 
-        // 验证任务是否存在
+        // 1. 验证主任务是否存在
         Task task = taskRepository.getTaskById(issueId);
         if (task == null)
         {
-            logUtils.w(TAG, "handleIssueRelations: Issue " + issueId + " not found");
+            logUtils.w(TAG, "createRelation: Issue " + issueId + " not found");
             return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Issue not found\"}");
         }
 
+        // 2. 解析请求体
+        Map<String, String> files = new HashMap<>();
         try
         {
-            // ✅ 查询该任务的所有阻塞关系
-            List<Relation> relations = taskRepository.getTaskDao().getRelationsByIssueId(issueId);
-            
-            // 构建 Redmine 格式的 JSON 响应
-            JsonArray relationsArray = new JsonArray();
-            if (relations != null)
-            {
-                for (Relation relation : relations)
-                {
-                    JsonObject relJson = new JsonObject();
-                    relJson.addProperty("id", relation.getId());
-                    relJson.addProperty("type", relation.getType());
-                    relJson.addProperty("issue_id", relation.getRelatedIssueId());
-                    relationsArray.add(relJson);
-                }
-            }
-            
-            JsonObject response = new JsonObject();
-            response.add("relations", relationsArray);
+            session.parseBody(files);
+        }
+        catch (IOException e)
+        {
+            logUtils.e(TAG, "createRelation: Failed to parse request body", e);
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to parse request body\"}");
+        }
+        catch (fi.iki.elonen.NanoHTTPD.ResponseException e)
+        {
+            logUtils.e(TAG, "createRelation: Response exception while parsing body", e);
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Failed to parse request body\"}");
+        }
 
-            logUtils.i(TAG, "handleIssueRelations: Returned " + relationsArray.size() + " relations for issue " + issueId);
-            return createCorsResponse(Response.Status.OK, "application/json", response.toString());
+        String postData = files.get("postData");
+        if (postData == null || postData.isEmpty())
+        {
+            logUtils.w(TAG, "createRelation: Missing request body");
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Missing request body\"}");
+        }
+
+        logUtils.d(TAG, "createRelation: Request body: " + postData);
+
+        // 3. 解析 relation 对象
+        org.json.JSONObject json;
+        try
+        {
+            json = new org.json.JSONObject(postData);
+        }
+        catch (org.json.JSONException e)
+        {
+            logUtils.e(TAG, "createRelation: Invalid JSON format", e);
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid JSON format\"}");
+        }
+
+        if (!json.has("relation"))
+        {
+            logUtils.w(TAG, "createRelation: Missing 'relation' object");
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Missing 'relation' object\"}");
+        }
+
+        org.json.JSONObject relationJson = json.getJSONObject("relation");
+        long issueToId;
+        try
+        {
+            issueToId = relationJson.getLong("issue_to_id");
+        }
+        catch (org.json.JSONException e)
+        {
+            logUtils.w(TAG, "createRelation: Missing 'issue_to_id' field");
+            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Missing 'issue_to_id' field\"}");
+        }
+
+        String relationType = relationJson.optString("relation_type", "blocks");
+
+        // 4. 验证关联任务是否存在
+        Task relatedTask = taskRepository.getTaskById(issueToId);
+        if (relatedTask == null)
+        {
+            logUtils.w(TAG, "createRelation: Related issue " + issueToId + " not found");
+            return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Related issue not found: " + issueToId + "\"}");
+        }
+
+        // 5. 创建关系
+        try
+        {
+            com.stupidbeauty.joyman.data.database.entity.Relation relation = new com.stupidbeauty.joyman.data.database.entity.Relation(issueId, issueToId, relationType);
+            long relationId = taskRepository.getRelationDao().insert(relation);
+
+            logUtils.i(TAG, "✅ 创建关系成功：" + relationId + " (" + issueId + " " + relationType + " " + issueToId + ")");
+
+            // 6. 返回创建的 Relation 对象
+            JsonObject responseJson = new JsonObject();
+            responseJson.addProperty("id", relationId);
+            responseJson.addProperty("issue_id", issueId);
+            responseJson.addProperty("issue_to_id", issueToId);
+            responseJson.addProperty("type", relationType);
+            responseJson.addProperty("created_at", relation.createdAt);
+
+            return createCorsResponse(Response.Status.CREATED, "application/json", responseJson.toString());
         }
         catch (Exception e)
         {
-            logUtils.e(TAG, "handleIssueRelations: Error querying relations", e);
-            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: " + e.getMessage() + "\"}");
-        }
-    }
-
-    /**
-     * 处理 /issues/{id}/relations/{relation_id}.json 请求
-     */
-    private Response handleIssueRelationDetail(IHTTPSession session, Method method, String uri)
-    {
-        // 解析任务 ID 和关系 ID
-        Matcher matcher = ISSUE_RELATION_DETAIL_PATTERN.matcher(uri);
-        if (!matcher.matches())
-        {
-            logUtils.w(TAG, "handleIssueRelationDetail: Invalid URI pattern: " + uri);
-            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid URI format\"}");
-        }
-
-        long issueId = Long.parseLong(matcher.group(1));
-        long relationId = Long.parseLong(matcher.group(2));
-        logUtils.d(TAG, "handleIssueRelationDetail: " + method + " relation " + relationId + " for issue " + issueId);
-
-        // 验证任务是否存在
-        Task task = taskRepository.getTaskById(issueId);
-        if (task == null)
-        {
-            logUtils.w(TAG, "handleIssueRelationDetail: Issue " + issueId + " not found");
-            return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Issue not found\"}");
-        }
-
-        if (Method.DELETE.equals(method))
-        {
-            try
-            {
-                // ✅ 删除指定的关系
-                int deletedCount = taskRepository.getTaskDao().deleteRelation(relationId);
-                
-                if (deletedCount > 0)
-                {
-                    logUtils.i(TAG, "handleIssueRelationDetail: Deleted relation " + relationId);
-                    return createCorsResponse(Response.Status.OK, "application/json", "{\"status\":\"deleted\"}");
-                }
-                else
-                {
-                    logUtils.w(TAG, "handleIssueRelationDetail: Relation " + relationId + " not found");
-                    return createCorsResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"Relation not found\"}");
-                }
-            }
-            catch (Exception e)
-            {
-                logUtils.e(TAG, "handleIssueRelationDetail: Error deleting relation", e);
-                return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: " + e.getMessage() + "\"}");
-            }
-        }
-        else
-        {
-            logUtils.w(TAG, "handleIssueRelationDetail: Method not allowed: " + method);
-            return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+            logUtils.e(TAG, "❌ 创建关系失败", e);
+            return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Failed to create relation: " + e.getMessage() + "\"}");
         }
     }
