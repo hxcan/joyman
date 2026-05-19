@@ -3,21 +3,24 @@ package com.stupidbeauty.joyman.repository;
 import android.app.Application;
 import androidx.lifecycle.LiveData;
 import com.stupidbeauty.joyman.data.database.AppDatabase;
-import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.dao.CommentDao;
-import com.stupidbeauty.joyman.data.database.entity.Task;
+import com.stupidbeauty.joyman.data.database.dao.RelationDao;
+import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.entity.Comment;
+import com.stupidbeauty.joyman.data.database.entity.Relation;
+import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.IdGenerator;
 import com.stupidbeauty.joyman.util.LogUtils;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 /**
  * Task 数据仓库
  *
  * @author 太极美术工程狮狮长
- * @version 2.0.11
+ * @version 2.0.12
  * @since 2026-03-31
  */
 public class TaskRepository
@@ -26,6 +29,7 @@ public class TaskRepository
     private static volatile TaskRepository INSTANCE;
     private final TaskDao taskDao;
     private final CommentDao commentDao;
+    private final RelationDao relationDao;
     private final LiveData<List<Task>> allTasksLive;
     private final ExecutorService executorService;
     private final LogUtils logUtils;
@@ -37,6 +41,7 @@ public class TaskRepository
         AppDatabase database = AppDatabase.getInstance(application);
         taskDao = database.taskDao();
         commentDao = database.commentDao();
+        relationDao = database.relationDao();
         allTasksLive = taskDao.getAllTasksLive();
         executorService = Executors.newFixedThreadPool(4);
         logUtils.d(TAG, "Constructor: Thread pool created with 4 threads - Repository will stay active for app lifetime");
@@ -69,6 +74,15 @@ public class TaskRepository
     public TaskDao getTaskDao()
     {
         return taskDao;
+    }
+
+    /**
+     * 获取 RelationDao 实例
+     * @return RelationDao 实例
+     */
+    public RelationDao getRelationDao()
+    {
+        return relationDao;
     }
 
     /**
