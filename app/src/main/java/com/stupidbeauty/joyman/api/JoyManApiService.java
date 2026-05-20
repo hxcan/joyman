@@ -42,6 +42,7 @@ public class JoyManApiService extends NanoHTTPD
     private static final String DEFAULT_ADMIN_USERNAME = "admin";
     private static final String DEFAULT_ADMIN_PASSWORD = "admin";
     private static final Pattern ISSUE_RELATIONS_PATTERN = Pattern.compile("^issues\\/(\\d+)\\/relations\\.json$");
+    private static final Pattern ISSUE_RELATION_DETAIL_PATTERN = Pattern.compile("^issues\\/(\\d+)\\/relations\\/(\\d+)\\.json$");
     private static final Pattern ISSUE_ID_PATTERN = Pattern.compile("^issues\\/(\\d+)\\.json$");
     private Context context;
     private LogUtils logUtils;
@@ -350,6 +351,7 @@ public class JoyManApiService extends NanoHTTPD
             {
                 return handleSearch(session, method);
             }
+            // 🔧 修复：Relations 端点路由移到 Issue Detail 路由之前，确保更具体的路径模式优先匹配
             else if (ISSUE_RELATIONS_PATTERN.matcher(uri).matches())
             {
                 // Relations 端点路由
@@ -369,21 +371,6 @@ public class JoyManApiService extends NanoHTTPD
                     {
                         return createRelation(session, issueId);
                     }
-                    else if (Method.DELETE.equals(method))
-                    {
-                        // 检查是否是删除特定关系 /issues/{id}/relations/{relation_id}.json
-                        Pattern relationDetailPattern = Pattern.compile("^issues\\/(\\d+)\\/relations\\/(\\d+)\\.json$");
-                        Matcher detailMatcher = relationDetailPattern.matcher(uri);
-                        if (detailMatcher.matches())
-                        {
-                            long relationId = Long.parseLong(detailMatcher.group(2));
-                            return handleIssueRelationDetail(session, issueId, relationId);
-                        }
-                        else
-                        {
-                            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid relation delete format\"}");
-                        }
-                    }
                     else
                     {
                         return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
@@ -392,6 +379,31 @@ public class JoyManApiService extends NanoHTTPD
                 else
                 {
                     logUtils.w(TAG, "serve: ISSUE_RELATIONS_PATTERN matched but group extraction failed");
+                    return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: Regex match failed\"}");
+                }
+            }
+            else if (ISSUE_RELATION_DETAIL_PATTERN.matcher(uri).matches())
+            {
+                // Relations Detail 端点路由（删除特定关系）
+                Matcher detailMatcher = ISSUE_RELATION_DETAIL_PATTERN.matcher(uri);
+                if (detailMatcher.matches())
+                {
+                    logUtils.d(TAG, "serve: ISSUE_RELATION_DETAIL_PATTERN matched, group(1)=" + detailMatcher.group(1) + ", group(2)=" + detailMatcher.group(2));
+                    long issueId = Long.parseLong(detailMatcher.group(1));
+                    long relationId = Long.parseLong(detailMatcher.group(2));
+                    
+                    if (Method.DELETE.equals(method))
+                    {
+                        return handleIssueRelationDetail(session, issueId, relationId);
+                    }
+                    else
+                    {
+                        return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+                    }
+                }
+                else
+                {
+                    logUtils.w(TAG, "serve: ISSUE_RELATION_DETAIL_PATTERN matched but group extraction failed");
                     return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: Regex match failed\"}");
                 }
             }
