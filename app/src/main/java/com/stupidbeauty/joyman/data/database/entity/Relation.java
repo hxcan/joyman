@@ -28,14 +28,14 @@ import androidx.room.ForeignKey;
         @ForeignKey(
             entity = Task.class,
             parentColumns = {"id"},
-            childColumns = {"issue_id"},
+            childColumns = {"related_issue_id"},
             onDelete = ForeignKey.CASCADE,
             onUpdate = ForeignKey.NO_ACTION
         ),
         @ForeignKey(
             entity = Task.class,
             parentColumns = {"id"},
-            childColumns = {"related_issue_id"},
+            childColumns = {"issue_id"},
             onDelete = ForeignKey.CASCADE,
             onUpdate = ForeignKey.NO_ACTION
         )
