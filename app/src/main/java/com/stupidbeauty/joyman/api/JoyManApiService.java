@@ -7,6 +7,7 @@ import android.util.Log;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonReader;
 import com.stupidbeauty.joyman.data.database.entity.Project;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.data.database.entity.Comment;
@@ -19,6 +20,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1225,11 +1227,21 @@ public class JoyManApiService extends NanoHTTPD
             return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Missing request body\"}");
         }
         
+        // 🔧 调试：记录原始请求体
+        logUtils.d(TAG, "createRelation: Raw postData length=" + postData.length() + ", first 100 chars: " + postData.substring(0, Math.min(100, postData.length())));
+        
         postData = cleanChunkedData(postData);
+        
+        // 🔧 调试：记录清理后的请求体
+        logUtils.d(TAG, "createRelation: Cleaned postData length=" + postData.length() + ", first 100 chars: " + postData.substring(0, Math.min(100, postData.length())));
         
         try
         {
-            JsonObject json = JsonParser.parseString(postData).getAsJsonObject();
+            // 🔧 修复：使用 lenient 模式解析 JSON
+            JsonReader jsonReader = new JsonReader(new StringReader(postData));
+            jsonReader.setLenient(true);
+            JsonObject json = JsonParser.parseReader(jsonReader).getAsJsonObject();
+            
             if (!json.has("relation"))
             {
                 logUtils.w(TAG, "createRelation: Missing 'relation' object");
