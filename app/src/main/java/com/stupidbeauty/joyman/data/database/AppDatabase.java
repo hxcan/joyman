@@ -183,13 +183,13 @@ public abstract class AppDatabase extends RoomDatabase {
         public void migrate(@NonNull SupportSQLiteDatabase database) {
             LogUtils.getInstance().d(TAG, "MIGRATION_5_6: START - Creating relations table for task blocking feature");
             
-            // 创建 relations 表（不包含外键约束，以避免与现有数据库结构冲突）
+            // 创建 relations 表（type 字段允许 NULL，与 Relation.java 实体类一致）
             database.execSQL(
                 "CREATE TABLE IF NOT EXISTS `relations` (" +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                 "`issue_id` INTEGER NOT NULL, " +
                 "`related_issue_id` INTEGER NOT NULL, " +
-                "`type` TEXT NOT NULL, " +
+                "`type` TEXT, " +
                 "`created_at` INTEGER NOT NULL)"
             );
             
@@ -211,13 +211,13 @@ public abstract class AppDatabase extends RoomDatabase {
             LogUtils.getInstance().d(TAG, "MIGRATION_6_7: START - Adding foreign key constraints to relations table");
             
             // 由于 SQLite 不支持直接添加外键约束，需要重建表
-            // 步骤 1: 创建临时表（包含外键约束）
+            // 步骤 1: 创建临时表（包含外键约束，type 字段允许 NULL）
             database.execSQL(
                 "CREATE TABLE relations_temp (" +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                 "`issue_id` INTEGER NOT NULL, " +
                 "`related_issue_id` INTEGER NOT NULL, " +
-                "`type` TEXT NOT NULL, " +
+                "`type` TEXT, " +
                 "`created_at` INTEGER NOT NULL, " +
                 "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
                 "FOREIGN KEY(`related_issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
