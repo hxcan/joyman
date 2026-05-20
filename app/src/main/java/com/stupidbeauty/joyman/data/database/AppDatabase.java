@@ -12,9 +12,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import com.stupidbeauty.joyman.data.database.dao.CommentDao;
 import com.stupidbeauty.joyman.data.database.dao.ProjectDao;
+import com.stupidbeauty.joyman.data.database.dao.RelationDao;
 import com.stupidbeauty.joyman.data.database.dao.TaskDao;
 import com.stupidbeauty.joyman.data.database.entity.Comment;
 import com.stupidbeauty.joyman.data.database.entity.Project;
+import com.stupidbeauty.joyman.data.database.entity.Relation;
 import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.LogUtils;
 
@@ -22,7 +24,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
 /**
  * JoyMan 应用数据库
  */
-@Database(entities = {Task.class, Project.class, Comment.class}, version = 5, exportSchema = false)
+@Database(entities = {Task.class, Project.class, Comment.class, Relation.class}, version = 6, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     
     private static final String DATABASE_NAME = "joyman-db";
@@ -32,6 +34,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract TaskDao taskDao();
     public abstract ProjectDao projectDao();
     public abstract CommentDao commentDao();
+    public abstract RelationDao relationDao();
     
     public static AppDatabase getInstance(Context context) {
         if (INSTANCE == null) {
@@ -47,7 +50,7 @@ public abstract class AppDatabase extends RoomDatabase {
     @NonNull
     private static AppDatabase buildDatabase(Context context) {
         return Room.databaseBuilder(context, AppDatabase.class, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -167,6 +170,35 @@ public abstract class AppDatabase extends RoomDatabase {
             database.execSQL("CREATE INDEX IF NOT EXISTS index_comments_issue_id ON comments(issue_id)");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_4_5: ✅ comments table created successfully");
+        }
+    };
+    
+    /**
+     * 数据库迁移：版本 5 → 版本 6
+     * 创建 relations 表以支持任务阻塞关系功能
+     */
+    static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            LogUtils.getInstance().d(TAG, "MIGRATION_5_6: START - Creating relations table for task blocking feature");
+            
+            // 创建 relations 表
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `relations` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`issue_id` INTEGER NOT NULL, " +
+                "`related_issue_id` INTEGER NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`created_at` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                "FOREIGN KEY(`related_issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+            );
+            
+            // 创建索引优化查询性能
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
+            
+            LogUtils.getInstance().i(TAG, "MIGRATION_5_6: ✅ relations table created successfully");
         }
     };
     
