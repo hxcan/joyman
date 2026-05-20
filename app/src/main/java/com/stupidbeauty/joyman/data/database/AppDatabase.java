@@ -61,9 +61,36 @@ public abstract class AppDatabase extends RoomDatabase {
                 @Override
                 public void onOpen(@NonNull SupportSQLiteDatabase db) {
                     LogUtils.getInstance().d(TAG, "Database opened, version: " + db.getVersion());
+                    // 打印 relations 表结构
+                    printTableSchema(db, "relations");
                 }
             })
             .build();
+    }
+    
+    /**
+     * 打印表结构调试信息
+     */
+    private static void printTableSchema(SupportSQLiteDatabase db, String tableName) {
+        LogUtils.getInstance().d(TAG, "=== Table Schema: " + tableName + " ===");
+        Cursor cursor = null;
+        try {
+            cursor = db.query("PRAGMA table_info(" + tableName + ")");
+            while (cursor.moveToNext()) {
+                String cid = cursor.getString(cursor.getColumnIndexOrThrow("cid"));
+                String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
+                String type = cursor.getString(cursor.getColumnIndexOrThrow("type"));
+                String notnull = cursor.getString(cursor.getColumnIndexOrThrow("notnull"));
+                String dfltValue = cursor.getString(cursor.getColumnIndexOrThrow("dflt_value"));
+                String pk = cursor.getString(cursor.getColumnIndexOrThrow("pk"));
+                LogUtils.getInstance().d(TAG, "  Column: " + name + ", Type: " + type + ", NotNull: " + notnull + ", Default: " + dfltValue + ", PK: " + pk);
+            }
+            LogUtils.getInstance().d(TAG, "=== End Schema ===");
+        } catch (Exception e) {
+            LogUtils.getInstance().e(TAG, "Error printing table schema", e);
+        } finally {
+            if (cursor != null) cursor.close();
+        }
     }
     
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
@@ -212,6 +239,9 @@ public abstract class AppDatabase extends RoomDatabase {
                     "`created_at` INTEGER NOT NULL)"
                 );
                 LogUtils.getInstance().d(TAG, "MIGRATION_5_6: Relations table created successfully");
+                
+                // 打印表结构
+                printTableSchema(database, "relations");
             } catch (Exception e) {
                 LogUtils.getInstance().e(TAG, "MIGRATION_5_6: ❌ Failed to create relations table", e);
                 throw e;
@@ -284,6 +314,10 @@ public abstract class AppDatabase extends RoomDatabase {
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
             LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Indexes created");
+            
+            // 打印最终表结构
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Final table schema:");
+            printTableSchema(database, "relations");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_6_7: ✅ Foreign key constraints added successfully");
         }
