@@ -4,6 +4,8 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.ColumnInfo;
 import androidx.room.Index;
+import androidx.room.ForeignKey;
+
 
 
 /**
@@ -21,6 +23,22 @@ import androidx.room.Index;
     indices = {
         @Index(value = {"issue_id"}),
         @Index(value = {"related_issue_id"})
+    },
+    foreignKeys = {
+        @ForeignKey(
+            entity = Task.class,
+            parentColumns = {"id"},
+            childColumns = {"issue_id"},
+            onDelete = ForeignKey.CASCADE,
+            onUpdate = ForeignKey.NO_ACTION
+        ),
+        @ForeignKey(
+            entity = Task.class,
+            parentColumns = {"id"},
+            childColumns = {"related_issue_id"},
+            onDelete = ForeignKey.CASCADE,
+            onUpdate = ForeignKey.NO_ACTION
+        )
     }
 )
 public class Relation {
