@@ -352,34 +352,45 @@ public class JoyManApiService extends NanoHTTPD
             else if (ISSUE_RELATIONS_PATTERN.matcher(uri).matches())
             {
                 // Relations 端点路由
-                long issueId = Long.parseLong(ISSUE_RELATIONS_PATTERN.matcher(uri).group(1));
-                
-                if ("GET".equals(method))
+                // 🔧 修复：复用 Matcher 对象，避免 IllegalStateException
+                Matcher relationsMatcher = ISSUE_RELATIONS_PATTERN.matcher(uri);
+                if (relationsMatcher.matches())
                 {
-                    return handleIssueRelations(session, issueId);
-                }
-                else if ("POST".equals(method))
-                {
-                    return createRelation(session, issueId);
-                }
-                else if ("DELETE".equals(method))
-                {
-                    // 检查是否是删除特定关系 /issues/{id}/relations/{relation_id}.json
-                    Pattern relationDetailPattern = Pattern.compile("^issues\\/(\\d+)\\/relations\\/(\\d+)\\.json$");
-                    Matcher detailMatcher = relationDetailPattern.matcher(uri);
-                    if (detailMatcher.matches())
+                    logUtils.d(TAG, "serve: ISSUE_RELATIONS_PATTERN matched, group(1)=" + relationsMatcher.group(1));
+                    long issueId = Long.parseLong(relationsMatcher.group(1));
+                    
+                    if ("GET".equals(method))
                     {
-                        long relationId = Long.parseLong(detailMatcher.group(2));
-                        return handleIssueRelationDetail(session, issueId, relationId);
+                        return handleIssueRelations(session, issueId);
+                    }
+                    else if ("POST".equals(method))
+                    {
+                        return createRelation(session, issueId);
+                    }
+                    else if ("DELETE".equals(method))
+                    {
+                        // 检查是否是删除特定关系 /issues/{id}/relations/{relation_id}.json
+                        Pattern relationDetailPattern = Pattern.compile("^issues\\/(\\d+)\\/relations\\/(\\d+)\\.json$");
+                        Matcher detailMatcher = relationDetailPattern.matcher(uri);
+                        if (detailMatcher.matches())
+                        {
+                            long relationId = Long.parseLong(detailMatcher.group(2));
+                            return handleIssueRelationDetail(session, issueId, relationId);
+                        }
+                        else
+                        {
+                            return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid relation delete format\"}");
+                        }
                     }
                     else
                     {
-                        return createCorsResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid relation delete format\"}");
+                        return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
                     }
                 }
                 else
                 {
-                    return createCorsResponse(Response.Status.METHOD_NOT_ALLOWED, "application/json", "{\"error\":\"Method not allowed\"}");
+                    logUtils.w(TAG, "serve: ISSUE_RELATIONS_PATTERN matched but group extraction failed");
+                    return createCorsResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal server error: Regex match failed\"}");
                 }
             }
             else if (uri.startsWith("issues/") && uri.endsWith(".json"))
