@@ -10,8 +10,8 @@ android {
         applicationId "com.stupidbeauty.joyman"
         minSdk 24
         targetSdk 34
-        versionCode 8
-        versionName "2026.5.10"
+        versionCode 9
+        versionName "2026.5.20"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -38,6 +38,19 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+    }
+    
+    // 自定义 APK 输出文件名
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            def outputFile = output.outputFile
+            if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                // 获取构建编号（GitHub Actions 环境变量）
+                def buildNumber = System.getenv("GITHUB_RUN_NUMBER") ?: ""
+                def fileName = "JoyMan-${variant.versionName}-build${buildNumber}-${variant.buildType.name}.apk"
+                output.outputFileName = fileName
+            }
+        }
     }
 }
 
