@@ -21,10 +21,11 @@ import com.stupidbeauty.joyman.data.database.entity.Task;
 import com.stupidbeauty.joyman.util.LogUtils;
 
 
+
 /**
  * JoyMan 应用数据库
  */
-@Database(entities = {Task.class, Project.class, Comment.class, Relation.class}, version = 6, exportSchema = false)
+@Database(entities = {Task.class, Project.class, Comment.class, Relation.class}, version = 7, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     
     private static final String DATABASE_NAME = "joyman-db";
@@ -50,7 +51,7 @@ public abstract class AppDatabase extends RoomDatabase {
     @NonNull
     private static AppDatabase buildDatabase(Context context) {
         return Room.databaseBuilder(context, AppDatabase.class, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -182,9 +183,37 @@ public abstract class AppDatabase extends RoomDatabase {
         public void migrate(@NonNull SupportSQLiteDatabase database) {
             LogUtils.getInstance().d(TAG, "MIGRATION_5_6: START - Creating relations table for task blocking feature");
             
-            // 创建 relations 表
+            // 创建 relations 表（不包含外键约束，以避免与现有数据库结构冲突）
             database.execSQL(
                 "CREATE TABLE IF NOT EXISTS `relations` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`issue_id` INTEGER NOT NULL, " +
+                "`related_issue_id` INTEGER NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`created_at` INTEGER NOT NULL)"
+            );
+            
+            // 创建索引优化查询性能
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
+            
+            LogUtils.getInstance().i(TAG, "MIGRATION_5_6: ✅ relations table created successfully");
+        }
+    };
+    
+    /**
+     * 数据库迁移：版本 6 → 版本 7
+     * 为 relations 表添加外键约束
+     */
+    static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: START - Adding foreign key constraints to relations table");
+            
+            // 由于 SQLite 不支持直接添加外键约束，需要重建表
+            // 步骤 1: 创建临时表（包含外键约束）
+            database.execSQL(
+                "CREATE TABLE relations_temp (" +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                 "`issue_id` INTEGER NOT NULL, " +
                 "`related_issue_id` INTEGER NOT NULL, " +
@@ -194,11 +223,23 @@ public abstract class AppDatabase extends RoomDatabase {
                 "FOREIGN KEY(`related_issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
             );
             
-            // 创建索引优化查询性能
+            // 步骤 2: 复制数据
+            database.execSQL(
+                "INSERT INTO relations_temp (id, issue_id, related_issue_id, type, created_at) " +
+                "SELECT id, issue_id, related_issue_id, type, created_at FROM relations"
+            );
+            
+            // 步骤 3: 删除旧表
+            database.execSQL("DROP TABLE relations");
+            
+            // 步骤 4: 重命名
+            database.execSQL("ALTER TABLE relations_temp RENAME TO relations");
+            
+            // 步骤 5: 创建索引
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
             
-            LogUtils.getInstance().i(TAG, "MIGRATION_5_6: ✅ relations table created successfully");
+            LogUtils.getInstance().i(TAG, "MIGRATION_6_7: ✅ Foreign key constraints added successfully");
         }
     };
     
