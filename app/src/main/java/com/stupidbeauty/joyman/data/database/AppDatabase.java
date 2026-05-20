@@ -69,10 +69,15 @@ public abstract class AppDatabase extends RoomDatabase {
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
+            LogUtils.getInstance().d(TAG, "MIGRATION_1_2: START");
             if (!checkColumnExists(database, "tasks", "project_id")) {
                 database.execSQL("ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL");
+                LogUtils.getInstance().d(TAG, "MIGRATION_1_2: Added project_id column");
+            } else {
+                LogUtils.getInstance().w(TAG, "MIGRATION_1_2: project_id column already exists");
             }
             database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
+            LogUtils.getInstance().i(TAG, "MIGRATION_1_2: ✅ Completed");
         }
     };
     
@@ -86,6 +91,7 @@ public abstract class AppDatabase extends RoomDatabase {
             LogUtils.getInstance().d(TAG, "MIGRATION_2_3: START");
             
             // 步骤 1: 创建临时表（status 默认值为 1）
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Creating temporary table...");
             database.execSQL(
                 "CREATE TABLE tasks_temp (" +
                 "id INTEGER PRIMARY KEY NOT NULL, " +
@@ -99,8 +105,10 @@ public abstract class AppDatabase extends RoomDatabase {
                 "due_date INTEGER DEFAULT NULL, " +
                 "tags TEXT DEFAULT '')"
             );
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Temporary table created");
             
             // 步骤 2: 复制数据，并使用 CASE 语句更新 status (0→1)
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Copying data...");
             database.execSQL(
                 "INSERT INTO tasks_temp (id, title, description, status, priority, project_id, created_at, updated_at, due_date, tags) " +
                 "SELECT id, title, description, " +
@@ -108,16 +116,21 @@ public abstract class AppDatabase extends RoomDatabase {
                 "       priority, project_id, created_at, updated_at, due_date, tags " +
                 "FROM tasks"
             );
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Data copied");
             
             // 步骤 3: 删除旧表
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Dropping old table...");
             database.execSQL("DROP TABLE tasks");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Old table dropped");
             
             // 步骤 4: 重命名
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Renaming table...");
             database.execSQL("ALTER TABLE tasks_temp RENAME TO tasks");
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Table renamed");
             
             // 步骤 5: 创建索引
+            LogUtils.getInstance().d(TAG, "MIGRATION_2_3: Creating index...");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_project_id ON tasks(project_id)");
-            
             LogUtils.getInstance().i(TAG, "MIGRATION_2_3: ✅ Schema and data updated successfully");
         }
     };
@@ -134,9 +147,11 @@ public abstract class AppDatabase extends RoomDatabase {
             // 检查 parent_id 列是否已存在（防止重复迁移）
             if (!checkColumnExists(database, "tasks", "parent_id")) {
                 // 添加 parent_id 列（允许 NULL，不影响现有任务）
+                LogUtils.getInstance().d(TAG, "MIGRATION_3_4: Adding parent_id column...");
                 database.execSQL("ALTER TABLE tasks ADD COLUMN parent_id INTEGER DEFAULT NULL");
                 
                 // 创建索引优化子任务查询性能
+                LogUtils.getInstance().d(TAG, "MIGRATION_3_4: Creating index...");
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_parent_id ON tasks(parent_id)");
                 
                 LogUtils.getInstance().i(TAG, "MIGRATION_3_4: ✅ parent_id column added successfully");
@@ -157,6 +172,7 @@ public abstract class AppDatabase extends RoomDatabase {
             
             // 创建 comments 表
             // 注意：content 和 author 允许为 NULL，与 Comment 实体类保持一致
+            LogUtils.getInstance().d(TAG, "MIGRATION_4_5: Creating comments table...");
             database.execSQL(
                 "CREATE TABLE IF NOT EXISTS `comments` (" +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -168,6 +184,7 @@ public abstract class AppDatabase extends RoomDatabase {
             );
             
             // 创建 issue_id 索引优化查询性能
+            LogUtils.getInstance().d(TAG, "MIGRATION_4_5: Creating index...");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_comments_issue_id ON comments(issue_id)");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_4_5: ✅ comments table created successfully");
@@ -184,18 +201,27 @@ public abstract class AppDatabase extends RoomDatabase {
             LogUtils.getInstance().d(TAG, "MIGRATION_5_6: START - Creating relations table for task blocking feature");
             
             // 创建 relations 表（type 字段定义为 TEXT NOT NULL，与 Relation.java 实体类 String 类型一致）
-            database.execSQL(
-                "CREATE TABLE IF NOT EXISTS `relations` (" +
-                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                "`issue_id` INTEGER NOT NULL, " +
-                "`related_issue_id` INTEGER NOT NULL, " +
-                "`type` TEXT NOT NULL, " +
-                "`created_at` INTEGER NOT NULL)"
-            );
+            LogUtils.getInstance().d(TAG, "MIGRATION_5_6: Creating relations table with type TEXT NOT NULL...");
+            try {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `relations` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`issue_id` INTEGER NOT NULL, " +
+                    "`related_issue_id` INTEGER NOT NULL, " +
+                    "`type` TEXT NOT NULL, " +
+                    "`created_at` INTEGER NOT NULL)"
+                );
+                LogUtils.getInstance().d(TAG, "MIGRATION_5_6: Relations table created successfully");
+            } catch (Exception e) {
+                LogUtils.getInstance().e(TAG, "MIGRATION_5_6: ❌ Failed to create relations table", e);
+                throw e;
+            }
             
             // 创建索引优化查询性能
+            LogUtils.getInstance().d(TAG, "MIGRATION_5_6: Creating indexes...");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
+            LogUtils.getInstance().d(TAG, "MIGRATION_5_6: Indexes created");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_5_6: ✅ relations table created successfully");
         }
@@ -212,32 +238,52 @@ public abstract class AppDatabase extends RoomDatabase {
             
             // 由于 SQLite 不支持直接添加外键约束，需要重建表
             // 步骤 1: 创建临时表（包含外键约束，type 字段定义为 TEXT NOT NULL）
-            database.execSQL(
-                "CREATE TABLE relations_temp (" +
-                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                "`issue_id` INTEGER NOT NULL, " +
-                "`related_issue_id` INTEGER NOT NULL, " +
-                "`type` TEXT NOT NULL, " +
-                "`created_at` INTEGER NOT NULL, " +
-                "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
-                "FOREIGN KEY(`related_issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
-            );
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Creating temporary table with foreign keys...");
+            try {
+                database.execSQL(
+                    "CREATE TABLE relations_temp (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`issue_id` INTEGER NOT NULL, " +
+                    "`related_issue_id` INTEGER NOT NULL, " +
+                    "`type` TEXT NOT NULL, " +
+                    "`created_at` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                    "FOREIGN KEY(`related_issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                );
+                LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Temporary table created");
+            } catch (Exception e) {
+                LogUtils.getInstance().e(TAG, "MIGRATION_6_7: ❌ Failed to create temporary table", e);
+                throw e;
+            }
             
             // 步骤 2: 复制数据
-            database.execSQL(
-                "INSERT INTO relations_temp (id, issue_id, related_issue_id, type, created_at) " +
-                "SELECT id, issue_id, related_issue_id, type, created_at FROM relations"
-            );
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Copying data from relations to relations_temp...");
+            try {
+                database.execSQL(
+                    "INSERT INTO relations_temp (id, issue_id, related_issue_id, type, created_at) " +
+                    "SELECT id, issue_id, related_issue_id, type, created_at FROM relations"
+                );
+                LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Data copied successfully");
+            } catch (Exception e) {
+                LogUtils.getInstance().e(TAG, "MIGRATION_6_7: ❌ Failed to copy data", e);
+                throw e;
+            }
             
             // 步骤 3: 删除旧表
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Dropping old relations table...");
             database.execSQL("DROP TABLE relations");
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Old table dropped");
             
             // 步骤 4: 重命名
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Renaming relations_temp to relations...");
             database.execSQL("ALTER TABLE relations_temp RENAME TO relations");
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Table renamed");
             
             // 步骤 5: 创建索引
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Creating indexes...");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
             database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
+            LogUtils.getInstance().d(TAG, "MIGRATION_6_7: Indexes created");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_6_7: ✅ Foreign key constraints added successfully");
         }
