@@ -77,7 +77,7 @@ public class Relation {
      * - "blocks": 主任务阻塞关联任务
      * - "blocked_by": 主任务被关联任务阻塞
      */
-    @ColumnInfo(name = "type", nullable = true)
+    @ColumnInfo(name = "type")
     private String type;
     
     /**
