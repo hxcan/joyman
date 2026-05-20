@@ -359,15 +359,16 @@ public class JoyManApiService extends NanoHTTPD
                     logUtils.d(TAG, "serve: ISSUE_RELATIONS_PATTERN matched, group(1)=" + relationsMatcher.group(1));
                     long issueId = Long.parseLong(relationsMatcher.group(1));
                     
-                    if ("GET".equals(method))
+                    // 🔧 修复：使用 Method 枚举比较，而不是字符串比较
+                    if (Method.GET.equals(method))
                     {
                         return handleIssueRelations(session, issueId);
                     }
-                    else if ("POST".equals(method))
+                    else if (Method.POST.equals(method))
                     {
                         return createRelation(session, issueId);
                     }
-                    else if ("DELETE".equals(method))
+                    else if (Method.DELETE.equals(method))
                     {
                         // 检查是否是删除特定关系 /issues/{id}/relations/{relation_id}.json
                         Pattern relationDetailPattern = Pattern.compile("^issues\\/(\\d+)\\/relations\\/(\\d+)\\.json$");
