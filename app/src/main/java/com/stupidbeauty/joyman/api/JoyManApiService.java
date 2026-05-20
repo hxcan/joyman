@@ -134,6 +134,7 @@ public class JoyManApiService extends NanoHTTPD
 
     /**
      * 清理 Chunked Transfer Encoding 的数据
+     * 🔧 修复：正确处理 chunk size 和 end chunk
      */
     private String cleanChunkedData(String data)
     {
@@ -143,25 +144,23 @@ public class JoyManApiService extends NanoHTTPD
         }
         logUtils.d(TAG, "cleanChunkedData: === START ===");
         logUtils.d(TAG, "cleanChunkedData: Original data length: " + data.length());
+        logUtils.d(TAG, "cleanChunkedData: Original data (first 200 chars): " + data.substring(0, Math.min(200, data.length())));
 
-        String[] chunkedEndings = {
-            "\r\n0\r\n", "\r\n0\n", "\n0\r\n", "\n0\n", "\r\n0", "\n0"
-        };
-        String originalData = data;
-        for (String ending : chunkedEndings)
-        {
-            if (data.endsWith(ending))
-            {
-                logUtils.d(TAG, "cleanChunkedData: Removing chunked ending: " + ending);
-                data = data.substring(0, data.length() - ending.length());
-                break;
-            }
-        }
-
-        data = data.trim();
-        logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + data.length());
+        // 🔧 修复：使用正则表达式移除所有 chunk size 行和末尾的 end chunk
+        // Chunked Transfer Encoding 格式：<hex-size>\r\n<data>\r\n...0\r\n
+        // 移除所有形如 "42\r\n" 的 chunk size 行
+        String cleaned = data.replaceAll("^[0-9a-fA-F]+\\r\\n", "");
+        // 移除末尾的 end chunk "0\r\n" 或 "0\n"
+        cleaned = cleaned.replaceAll("\\r\\n0\\r\\n$", "");
+        cleaned = cleaned.replaceAll("\\n0\\n$", "");
+        cleaned = cleaned.replaceAll("\\r\\n0$", "");
+        cleaned = cleaned.replaceAll("\\n0$", "");
+        
+        cleaned = cleaned.trim();
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data length: " + cleaned.length());
+        logUtils.d(TAG, "cleanChunkedData: Cleaned data (first 200 chars): " + cleaned.substring(0, Math.min(200, cleaned.length())));
         logUtils.d(TAG, "cleanChunkedData: === END ===");
-        return data;
+        return cleaned;
     }
 
     /**
@@ -1228,12 +1227,12 @@ public class JoyManApiService extends NanoHTTPD
         }
         
         // 🔧 调试：记录原始请求体
-        logUtils.d(TAG, "createRelation: Raw postData length=" + postData.length() + ", first 100 chars: " + postData.substring(0, Math.min(100, postData.length())));
+        logUtils.d(TAG, "createRelation: Raw postData length=" + postData.length() + ", first 200 chars: " + postData.substring(0, Math.min(200, postData.length())));
         
         postData = cleanChunkedData(postData);
         
         // 🔧 调试：记录清理后的请求体
-        logUtils.d(TAG, "createRelation: Cleaned postData length=" + postData.length() + ", first 100 chars: " + postData.substring(0, Math.min(100, postData.length())));
+        logUtils.d(TAG, "createRelation: Cleaned postData length=" + postData.length() + ", first 200 chars: " + postData.substring(0, Math.min(200, postData.length())));
         
         try
         {
