@@ -211,7 +211,7 @@ public abstract class AppDatabase extends RoomDatabase {
             LogUtils.getInstance().d(TAG, "MIGRATION_6_7: START - Adding foreign key constraints to relations table");
             
             // 由于 SQLite 不支持直接添加外键约束，需要重建表
-            // 步骤 1: 创建临时表（包含外键约束）
+            // 步骤 1: 创建临时表（包含外键约束，顺序与 Relation.java 实体类一致）
             database.execSQL(
                 "CREATE TABLE relations_temp (" +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
