@@ -25,7 +25,7 @@ import com.stupidbeauty.joyman.util.LogUtils;
 /**
  * JoyMan 应用数据库
  */
-@Database(entities = {Task.class, Project.class, Comment.class, Relation.class}, version = 7, exportSchema = false)
+@Database(entities = {Task.class, Project.class, Comment.class, Relation.class}, version = 8, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     
     private static final String DATABASE_NAME = "joyman-db";
@@ -51,7 +51,7 @@ public abstract class AppDatabase extends RoomDatabase {
     @NonNull
     private static AppDatabase buildDatabase(Context context) {
         return Room.databaseBuilder(context, AppDatabase.class, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .fallbackToDestructiveMigration()
             .addCallback(new Callback() {
                 @Override
@@ -320,6 +320,72 @@ public abstract class AppDatabase extends RoomDatabase {
             printTableSchema(database, "relations");
             
             LogUtils.getInstance().i(TAG, "MIGRATION_6_7: ✅ Foreign key constraints added successfully");
+        }
+    };
+    
+    /**
+     * 数据库迁移：版本 7 → 版本 8
+     * 将 relations 表 type 字段从 NOT NULL 改为允许 NULL
+     */
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: START - Modifying type column to allow NULL");
+            
+            // 由于 SQLite 不支持直接修改列的 nullable 属性，需要重建表
+            // 步骤 1: 创建临时表（type 字段允许 NULL）
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Creating temporary table with type TEXT (nullable)...");
+            try {
+                database.execSQL(
+                    "CREATE TABLE relations_temp (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`issue_id` INTEGER NOT NULL, " +
+                    "`related_issue_id` INTEGER NOT NULL, " +
+                    "`type` TEXT, " +
+                    "`created_at` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                    "FOREIGN KEY(`related_issue_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                );
+                LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Temporary table created");
+            } catch (Exception e) {
+                LogUtils.getInstance().e(TAG, "MIGRATION_7_8: ❌ Failed to create temporary table", e);
+                throw e;
+            }
+            
+            // 步骤 2: 复制数据
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Copying data from relations to relations_temp...");
+            try {
+                database.execSQL(
+                    "INSERT INTO relations_temp (id, issue_id, related_issue_id, type, created_at) " +
+                    "SELECT id, issue_id, related_issue_id, type, created_at FROM relations"
+                );
+                LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Data copied successfully");
+            } catch (Exception e) {
+                LogUtils.getInstance().e(TAG, "MIGRATION_7_8: ❌ Failed to copy data", e);
+                throw e;
+            }
+            
+            // 步骤 3: 删除旧表
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Dropping old relations table...");
+            database.execSQL("DROP TABLE relations");
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Old table dropped");
+            
+            // 步骤 4: 重命名
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Renaming relations_temp to relations...");
+            database.execSQL("ALTER TABLE relations_temp RENAME TO relations");
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Table renamed");
+            
+            // 步骤 5: 创建索引
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Creating indexes...");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_issue_id ON relations(issue_id)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_relations_related_issue_id ON relations(related_issue_id)");
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Indexes created");
+            
+            // 打印最终表结构
+            LogUtils.getInstance().d(TAG, "MIGRATION_7_8: Final table schema:");
+            printTableSchema(database, "relations");
+            
+            LogUtils.getInstance().i(TAG, "MIGRATION_7_8: ✅ Type column modified to allow NULL successfully");
         }
     };
     
