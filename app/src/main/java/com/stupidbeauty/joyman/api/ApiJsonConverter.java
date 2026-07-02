@@ -208,6 +208,11 @@ public class ApiJsonConverter {
             if (issueJson.has("parent_issue_id")) {
                 task.setParentId(issueJson.get("parent_issue_id").getAsLong());
             }
+            // 设置创建时间和更新时间（修复 1970-01-01 问题）
+            long now = System.currentTimeMillis();
+            task.setCreatedAt(now);
+            task.setUpdatedAt(now);
+
             
             logUtils.d(TAG, "jsonToTask: Created task from JSON: " + task.getTitle());
             
